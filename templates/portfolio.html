@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio & Trade History - TradeVerse</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+    <div class="topbar">
+        <div class="topbar-inner topbar-dashboard">
+            <div class="logo-wrap">
+                <a href="{{ url_for('dashboard') }}">
+                    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="TradeVerse Logo">
+                </a>
+            </div>
+            <div class="topbar-nav">
+                <a href="{{ url_for('dashboard') }}" class="topbar-link">Dashboard</a>
+                <a href="{{ url_for('portfolio_page') }}" class="topbar-link active">My Portfolio</a>
+                <a href="{{ url_for('market_page', market='ISE') }}" class="topbar-link">Indian Stocks</a>
+                <a href="{{ url_for('market_page', market='USE') }}" class="topbar-link">US Stocks</a>
+                <a href="{{ url_for('market_page', market='CCME') }}" class="topbar-link">Crypto</a>
+            </div>
+            <div class="topbar-user">
+                Hi, <strong>{{ username }}</strong> &bdquo; <a href="{{ url_for('logout') }}">Log Out</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="dash-wrap">
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Navigation & Quick Action Bar -->
+        <div class="control-row">
+            <div class="menu-wrap">
+                <button id="menuBtn" class="hamburger-btn" title="Choose market">
+                    <span></span><span></span><span></span>
+                </button>
+                <div id="dropdownMenu" class="dropdown-menu hidden">
+                    <a class="dropdown-item" href="{{ url_for('dashboard') }}">Dashboard <small>Market Overview</small></a>
+                    <a class="dropdown-item active" href="{{ url_for('portfolio_page') }}">My Portfolio <small>Holdings & Executed Records</small></a>
+                    <a class="dropdown-item" href="{{ url_for('market_page', market='ISE') }}">Indian Stock Exchange <small>Portfolio &amp; Wallet</small></a>
+                    <a class="dropdown-item" href="{{ url_for('market_page', market='USE') }}">US Stock Exchange <small>Portfolio & Wallet</small></a>
+                    <a class="dropdown-item" href="{{ url_for('market_page', market='CCME') }}">Crypto Currency Market Exchange <small>Portfolio & Wallet</small></a>
+                </div>
+            </div>
+
+            <div class="portfolio-header-actions">
+                <a href="{{ url_for('dashboard') }}" class="btn btn-navy back-to-dash-btn">&larrr; Back to Dashboard</a>
+                <button type="button" class="btn btn-buy-modal" id="quickTradeBtn">+ Buy Stock / Crypto</button>
+            </div>
+        </div>
+
+        <!-- Portfolio Headline Cards -->
+        <div class="portfolio-summary-grid">
+            <div class="summary-card">
+                <span class="sc-label">Wallet Purse Balances</span>
+                <div class="wallet-pills">
+                    <div class="wp-pill">
+                        <span class="wp-flag">₹ ISE</span>
+                        <strong id="walletISE" class="wp-val">--</strong>
+                    </div>
+                    <div class="wp-pill">
+                        <span class="wp-flag">$ USE</span>
+                        <strong id="walletUSE" class="wp-val">--</strong>
+                    </div>
+                    <div class="wp-pill">
+                        <span class="wp-flag">$ CCME</span>
+                        <strong id="walletCCME" class="wp-val">--</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="summary-card">
+                <span class="sc-label">Total Active Holdings</span>
+                <div class="sc-value-row">
+                    <span id="holdingsCount" class="sc-value">--</span>
+                    <span class="sc-subtext">Active positions</span>
+                </div>
+                <div class="sc-breakdown">
+                    <span>ISE: <strong id="countISE">0</strong></span> &bull;
+                    <span>USE: <strong id="countUSE">0</strong></span> &bull;
+                    <span>CCME: <strong id="countCCME">0</strong></span>
+                </div>
+            </div>
+
+            <div class="summary-card">
+                <span class="sc-label">Total Trades Executed</span>
+                <div class="sc-value-row">
+                    <span id="tradesCount" class="sc-value">--</span>
+                    <span class="sc-subtext">All-time transactions</span>
+                </div>
+                <div class="sc-breakdown">
+                    <span class="text-green">Buy: <strong id="buyCount">0</strong></span> &bdquo;
+                    <span class="text-red">Sell: <strong id="sellCount">0</strong></span>
+                </div>
+            </div>
+
+            <div class="summary-card">
+                <span class="sc-label">Realized Profit / Loss</span>
+                <div class="sc-value-row">
+                    <span id="realizedPL" class="sc-value">--</span>
+                </div>
+                <div class="sc-breakdown">
+                    <span>US/Crypto: <strong id="realizedPLUSD">$0.00</strong></span> &bdquo;
+                    <span>Indian: <strong id="realizedPLINR">⁹0.00</strong></span>
+                </div>
+            </div>
+
+        </div>
+
+
+        <!-- Tabbed Section: Holdings vs Transaction Record -->
+        <div class="portfolio-main-panel">
+            <div class="panel-tab-bar">
+                <button type="button" class="panel-tab active" id="tabHoldingsBtn" data-tab="holdings">
+                    Active Holdings <span class="tab-badge" id="badgeHoldings">0</span>
+                </button>
+                <button type="button" class="panel-tab" id="tabTransactionsBtn" data-tab="transactions">
+                    Buy & Sell Record History <small class="tab-hint">(kitna buy ki, kitna sell kia)</small> <span class="tab-badge" id="badgeTransactions">0</span>
+                </button>
+            </div>
+
+            <!-- Tab 1: Holdings Content -->
+            <div id="holdingsTabContent" class="tab-content">
+                <div class="table-filter-row">
+                    <div class="filter-group">
+                        <span class="filter-label">Market:</span>
+                        <button type="button" class="filter-btn active" data-market-filter="ALL">All</button>
+                        <button type="button" class="filter-btn" data-market-filter="ISE">Indian Stocks (ISE)</button>
+                        <button type="button" class="filter-btn" data-market-filter="USE">US Stocks (USE)</button>
+                        <button type="button" class="filter-btn" data-market-filter="CCME">Crypto (CCME)</button>
+                    </div>
+                </div>
+
+                <div class="table-scroll">
+                    <table class="portfolio-table">
+                        <thead>
+                            <tr>
+                                <th>Asset Symbol</th>
+                                <th>Market</th>
+                                <th>Bought Date</th>
+                                <th class="num">Bought Price</th>
+                                <th class="num">Current Price</th>
+                                <th class="num">Quantity</th>
+                                <th class="num">Total Amount</th>
+                                <th class="num">Profit / Loss</th>
+                                <th class="num">P/L %</th>
+                                <th class="actions">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="holdingsBody">
+                            <tr><td colspan="10" class="loading-row">Loading active portfolio holdings...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tab 2: Transaction History Content -->
+            <div id="transactionsTabContent" class="tab-content hidden">
+                <div class="table-filter-row">
+                    <div class="filter-group">
+                        <span class="filter-label">Trade Type:</span>
+                        <button type="button" class="filter-btn active" data-type-filter="ALL">All Trades</button>
+                        <button type="button" class="filter-btn" data-type-filter="BUY">Buy Orders Only (Kitna buy kiya)</button>
+                        <button type="button" class="filter-btn" data-type-filter="SELL">Sell Orders Only (Kitna sell kiya)</button>
+                    </div>
+                    <div class="filter-group">
+                        <span class="filter-label">Market:</span>
+                        <button type="button" class="filter-btn active" data-tx-market-filter="ALLL">All Markets</button>
+                        <button type="button" class="filter-btn" data-tx-market-filter="ISE">ISE (₹)</button>
+                        <button type="button" class="filter-btn" data-tx-market-filter="USE">USE ($)</button>
+                        <button type="button" class="filter-btn" data-tx-market-filter="CCME">CCME ($)</button>
+                    </div>
+                </div>
+
+                <div class="table-scroll">
+                    <table class="portfolio-table transactions-table">
+                        <thead>
+                            <tr>
+                                <th>Date & Time</th>
+                                <th>Type</th>
+                                <th>Asset Symbol</th>
+                                <th>Market</th>
+                                <th class="num">Quantity</th>
+                                <th class="num">Execution Price</th>
+                                <th class="num">Total Trade Amount</th>
+                                <th class="num">Realized P/L</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactionsBody">
+                            <tr><td colspan="9" class="loading-row">Loading transaction history...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <p class="refresh-note">Prices and records refresh automatically every 10 minutes &middot; Paper trading platform.</p>
+    </div>
+
+
+    <!-- Quick Buy Stock / Crypto Modal -->
+    <div id="quickTradeModal" class="trade-modal hidden">
+        <div class="trade-modal-backdrop" id="quickTradeBackdrop"></div>
+        <div class="trade-modal-card" role="dialog" aria-modal="true" aria-labelledby="quickTradeTitle">
+            <button type="button" class="trade-modal-close" id="quickTradeClose" aria-label="Close">&times;</button>
+            <h3 id="quickTradeTitle">Buy Stock or Cryptocurrency</h3>
+            <p class="trade-modal-asset">Search or enter an asset to buy into your paper portfolio</p>
+
+            <label for="quickSymbol">Select Asset</label>
+            <div class="quick-select-wrap">
+                <input id="quickSymbol" type="text" placeholder="e.g. AAPLR, RELIANCE.NS, TSLA, BTC-USD" list="popularSymbols" autocomplete="off">
+                <datalist id="popularSymbols">
+                    <option value="AAPL">Apple Inc. (US Stock)</option>
+                    <option value="MSFT">Microsoft Corporation (US Stock)</option>
+                    <option value="TSLA">Tesla, Inc. (US Stock)</option>
+                    <option value="NVDA">NVIDIA Corporation (US Stock)</option>
+                    <option value="AMZN">Amazon.com (US Stock)</option>
+                    <option value="RELIANCE.NS">Reliance Industries Ltd (Indian Stock)</option>
+                    <option value="TCS.NS">Tata Consultancy Services (Indian Stock)</option>
+                    <option value="INFY.NS">Infosys Ltd (Indian Stock)</option>
+                    <option value="HDFCBANK.NS">HDFC Bank Ltd (Indian Stock)</option>
+                    <option value="TATAMOTORS.NS">Tata Motors Ltd (Indian Stock)</option>
+                    <option value="BTC-USD">Bitcoin (Crypto)</option>
+                    <option value="ETH-USD">Ethereum (Crypto)</option>
+                    <option value="SOL-USD">Solana (Crypto)</option>
+                </datalist>
+            </div>
+
+            <label for="quickQuantity">Quantity to Buy</label>
+            <input id="quickQuantity" type="number" min="0.00000001" step="1" value="1" inputmode="decimal">
+
+
+            <div class="trade-modal-price-row">
+                <span>Estimated Unit Price</span>
+                <strong id="quickUnitPrice">--</strong>
+            </div>
+            <div class="trade-modal-price-row">
+                <span>Total Estimated Cost</span>
+                <strong id="quickTotalCost">--</strong>
+            </div>
+            <div class="trade-modal-price-row">
+                <span>Available Purse Balance</span>
+                <strong id="quickWalletBalance">--</strong>
+            </div>
+
+
+            <p id="quickTradeError" class="trade-modal-error hidden"></p>
+
+            <div class="trade-modal-actions">
+                <button type="button" class="btn btn-navy" id="quickTradeCancel">Cancel</button>
+                <button type="button" class="btn-buy" id="quickTradeSubmit">Confirm Buy</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/trade_modal.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/portfolio.js') }}"></script>
+</body>
+</html>

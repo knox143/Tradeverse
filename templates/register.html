@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Account - TradeVerse</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+    <div class="topbar">
+        <div class="topbar-inner">
+            <div class="logo-wrap">
+                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="TradeVerse Logo">
+            </div>
+        </div>
+    </div>
+
+    <div class="page-wrap">
+        <div class="auth-card">
+            <h1>Create Your Account</h1>
+            <p class="subtitle">Practice trading with <strong>zero risk</strong></p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('register') }}" onsubmit="return validateRegisterForm()">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" placeholder="Choose a username" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" name="email" placeholder="you@example.com" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="phone">Phone Number</label>
+                    <input type="tel" id="phone" name="phone" placeholder="98XXXXXXXX" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <div class="password-wrap">
+                        <input type="password" id="password" name="password" placeholder="At least 6 characters" required>
+                        <span class="toggle-pw" onclick="togglePassword('password', this)">SHOW</span>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-navy">Create Account</button>
+            </form>
+
+            <div class="card-footer">
+                Already have an account? <a href="{{ url_for('login') }}">Log in here</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>

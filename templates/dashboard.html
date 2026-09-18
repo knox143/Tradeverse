@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - TradeVerse</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+    <div class="topbar">
+        <div class="topbar-inner topbar-dashboard">
+            <div class="logo-wrap">
+                <a href="{{ url_for('dashboard') }}">
+                    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="TradeVerse Logo">
+                </a>
+            </div>
+            <div class="topbar-nav">
+                <a href="{{ url_for('dashboard') }}" class="topbar-link active">Dashboard</a>
+                <a href="{{ url_for('portfolio_page') }}" class="topbar-link">My Portfolio</a>
+                <a href="{{ url_for('market_page', market='ISE') }}" class="topbar-link">Indian Stocks</a>
+                <a href="{{ url_for('market_page', market='USE') }}" class="topbar-link">US Stocks</a>
+                <a href="{{ url_for('market_page', market='CCME') }}" class="topbar-link">Crypto</a>
+            </div>
+            <div class="topbar-user">
+                Hi, <strong>{{ username }}</strong> &middot; <a href="{{ url_for('logout') }}">Log Out</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="dash-wrap">
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Control row: hamburger / dropdown menu (links to each market's page) + search bar -->
+        <div class="control-row">
+            <div class="menu-wrap">
+                <button id="menuBtn" class="hamburger-btn" title="Choose portfolio">
+                    <span></span><span></span><span></span>
+                </button>
+                <div id="dropdownMenu" class="dropdown-menu hidden">
+                    <a class="dropdown-item" href="{{ url_for('dashboard') }}">Dashboard <small>Market Overview</small></a>
+                    <a class="dropdown-item" href="{{ url_for('portfolio_page') }}">My Portfolio <small>Holdings &amp; Trade History</small></a>
+                    <a class="dropdown-item" href="{{ url_for('market_page', market='ISE') }}">Indian Stock Exchange <small>Portfolio &amp; Wallet</small></a>
+                    <a class="dropdown-item" href="{{ url_for('market_page', market='USE') }}">US Stock Exchange <small>Portfolio &amp; Wallet</small></a>
+                    <a class="dropdown-item" href="{{ url_for('market_page', market='CCME') }}">Crypto Currency Market Exchange <small>Portfolio &amp; Wallet</small></a>
+                </div>
+            </div>
+
+            <div class="search-wrap">
+                <div class="search-bar">
+                    <input type="text" id="searchInput" placeholder="Search a symbol e.g. AAPL, RELIANCE.NS, BTC-USD" autocomplete="off">
+                    <button id="searchBtn" type="button">Search</button>
+                </div>
+                <div id="searchResultsDropdown" class="search-dropdown hidden"></div>
+            </div>
+        </div>
+
+        <!-- Bitcoin hero box -->
+        <div class="btc-hero">
+            <img src="{{ url_for('static', filename='images/bitcoin.png') }}" alt="Bitcoin" class="btc-hero-img">
+            <div class="btc-hero-info">
+                <span class="btc-hero-label">Bitcoin</span>
+                <span id="btcPrice" class="btc-hero-price">--</span>
+                <span id="btcChange" class="idx-change">--</span>
+            </div>
+        </div>
+
+        <!-- Market index boxes -->
+        <div class="index-boxes">
+            <div class="index-box" id="idx-sp500">
+                <h3>S&amp;P 500</h3>
+                <div class="idx-price">6,250.00</div> <!-- Proxy Price -->
+                <div class="idx-change">+0.45%</div>
+            </div>
+
+            <div class="index-box" id="idx-nifty50">
+                <h3>NIFTY 50</h3>
+                <div class="idx-price">25,000.00</div> <!-- Proxy Price -->
+                <div class="idx-change">+0.38%</div>
+            </div>
+
+            <div class="index-box" id="idx-sensex">
+                <h3>SENSEX</h3>
+                <div class="idx-price">82,000.00</div> <!-- Proxy Price -->
+                <div class="idx-change">+0.41%</div>
+            </div>
+        </div>
+
+        <!-- Portfolio Snapshot & Recent Trades Widget -->
+        <div class="dash-portfolio-preview">
+            <div class="dpp-header">
+                <h3>My Investment Portfolio</h3>
+                <a href="{{ url_for('portfolio_page') }}" class="dpp-link">View Full Portfolio &amp; Trade History &rarr;</a>
+            </div>
+
+            <div class="dpp-grid">
+                <div class="dpp-card">
+                    <div class="dpp-card-label">Active Holdings</div>
+                    <div id="dashHoldingsCount" class="dpp-card-val">--</div>
+                </div>
+                <div class="dpp-card">
+                    <div class="dpp-card-label">Total Trades (Buy / Sell)</div>
+                    <div id="dashTradesCount" class="dpp-card-val">--</div>
+                </div>
+                <div class="dpp-card">
+                    <div class="dpp-card-label">ISE Wallet Balance</div>
+                    <div id="dashWalletISE" class="dpp-card-val">--</div>
+                </div>
+                <div class="dpp-card">
+                    <div class="dpp-card-label">USE Wallet Balance</div>
+                    <div id="dashWalletUSE" class="dpp-card-val">--</div>
+                </div>
+            </div>
+
+            <div class="table-scroll">
+                <table class="portfolio-table">
+                    <thead>
+                        <tr>
+                            <th>Date &amp; Time</th>
+                            <th>Type</th>
+                            <th>Asset Symbol</th>
+                            <th>Market</th>
+                            <th class="num">Quantity</th>
+                            <th class="num">Execution Price</th>
+                            <th class="num">Total Amount</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dashRecentTradesBody">
+                        <tr><td colspan="8" class="loading-row">Loading recent trades...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <p class="refresh-note">Prices refresh automatically every 10 minutes.</p>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>

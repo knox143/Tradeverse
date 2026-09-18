@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ market_name }} - TradeVerse</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+    <div class="topbar">
+        <div class="topbar-inner topbar-dashboard">
+            <div class="logo-wrap">
+                <a href="{{ url_for('dashboard') }}">
+                    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="TradeVerse Logo">
+                </a>
+            </div>
+            <div class="topbar-nav">
+                <a href="{{ url_for('dashboard') }}" class="topbar-link">Dashboard</a>
+                <a href="{{ url_for('portfolio_page') }}" class="topbar-link">My Portfolio</a>
+                <a href="{{ url_for('market_page', market='ISE') }}" class="topbar-link {{ 'active' if market == 'ISE' else '' }}">Indian Stocks</a>
+                <a href="{{ url_for('market_page', market='USE') }}" class="topbar-link {{ 'active' if market == 'USE' else '' }}">US Stocks</a>
+                <a href="{{ url_for('market_page', market='CCME') }}" class="topbar-link {{ 'active' if market == 'CCME' else '' }}">Crypto</a>
+            </div>
+            <div class="topbar-user">
+                Hi, <strong>{{ username }}</strong> &middot; <a href="{{ url_for('logout') }}">Log Out</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="dash-wrap">
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Control row: hamburger / dropdown menu to switch between markets -->
+        <div class="control-row">
+            <div class="menu-wrap">
+                <button id="menuBtn" class="hamburger-btn" title="Choose market">
+                    <span></span><span></span><span></span>
+                </button>
+                <div id="dropdownMenu" class="dropdown-menu hidden">
+                    <a class="dropdown-item" href="{{ url_for('dashboard') }}">Dashboard <small>Market Overview</small></a>
+                    <a class="dropdown-item" href="{{ url_for('portfolio_page') }}">My Portfolio <small>Holdings &amp; Trade History</small></a>
+                    <a class="dropdown-item {{ 'active' if market == 'ISE' else '' }}" href="{{ url_for('market_page', market='ISE') }}">Indian Stock Exchange <small>Portfolio &amp; Wallet</small></a>
+                    <a class="dropdown-item {{ 'active' if market == 'USE' else '' }}" href="{{ url_for('market_page', market='USE') }}">US Stock Exchange <small>Portfolio &amp; Wallet</small></a>
+                    <a class="dropdown-item {{ 'active' if market == 'CCME' else '' }}" href="{{ url_for('market_page', market='CCME') }}">Crypto Currency Market Exchange <small>Portfolio &amp; Wallet</small></a>
+                </div>
+            </div>
+            <div class="portfolio-header-actions">
+                <a href="{{ url_for('dashboard') }}" class="btn btn-navy back-to-dash-btn">&larr; Back to Dashboard</a>
+                <a href="{{ url_for('portfolio_page') }}" class="btn btn-navy back-to-dash-btn">View All Portfolio</a>
+            </div>
+        </div>
+
+        <!-- User Portfolio & User Purse panel -->
+        <div class="portfolio-panel">
+            <div class="portfolio-panel-header">
+                <div>
+                    <h2>{{ market_name }}</h2>
+                    <span class="market-subtitle">Active Holdings &amp; Wallet</span>
+                </div>
+                <div class="wallet-box">
+                    <span class="wallet-label">Wallet Balance</span>
+                    <span id="walletAmount" class="wallet-amount">--</span>
+                </div>
+            </div>
+
+            <div id="portfolioTableWrap" class="table-scroll">
+                <table class="portfolio-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Bought Date</th>
+                            <th class="num">Bought Price</th>
+                            <th class="num">Current Price</th>
+                            <th class="num">Quantity</th>
+                            <th class="num">Total Amount</th>
+                            <th class="num">Profit / Loss</th>
+                            <th class="num">P/L %</th>
+                            <th class="actions">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="portfolioBody">
+                        <tr><td colspan="9" class="loading-row">Loading portfolio...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Market Trade Records (Buy & Sell History) -->
+        <div class="portfolio-panel" style="margin-top: 24px;">
+            <div class="portfolio-panel-header">
+                <div>
+                    <h3>{{ market }} Buy &amp; Sell Trade History</h3>
+                    <span class="market-subtitle">Complete execution records for {{ market_name }}</span>
+                </div>
+            </div>
+
+            <div class="table-scroll">
+                <table class="portfolio-table transactions-table">
+                    <thead>
+                        <tr>
+                            <th>Date &amp; Time</th>
+                            <th>Type</th>
+                            <th>Asset Symbol</th>
+                            <th class="num">Quantity</th>
+                            <th class="num">Execution Price</th>
+                            <th class="num">Total Amount</th>
+                            <th class="num">Realized P/L</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="marketTransactionsBody">
+                        <tr><td colspan="8" class="loading-row">Loading trade history...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <p class="refresh-note">Prices and records refresh automatically every 10 minutes &middot; Paper trading platform.</p>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/trade_modal.js') }}"></script>
+    <script>
+        window.TRADEVERSE_MARKET = "{{ market }}";
+        window.TRADEVERSE_CURRENCY_SYMBOL = "{{ currency_symbol }}";
+    </script>
+    <script src="{{ url_for('static', filename='js/market.js') }}"></script>
+</body>
+</html>

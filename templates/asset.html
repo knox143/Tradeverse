@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ display_name }} - TradeVerse</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+    <div class="topbar">
+        <div class="topbar-inner topbar-dashboard">
+            <div class="logo-wrap">
+                <a href="{{ url_for('dashboard') }}">
+                    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="TradeVerse Logo">
+                </a>
+            </div>
+            <div class="topbar-nav">
+                <a href="{{ url_for('dashboard') }}" class="topbar-link">Dashboard</a>
+                <a href="{{ url_for('portfolio_page') }}" class="topbar-link">My Portfolio</a>
+                <a href="{{ url_for('market_page', market='ISE') }}" class="topbar-link">Indian Stocks</a>
+                <a href="{{ url_for('market_page', market='USE') }}" class="topbar-link">US Stocks</a>
+                <a href="{{ url_for('market_page', market='CCME') }}" class="topbar-link">Crypto</a>
+            </div>
+            <div class="topbar-user">
+                Hi, <strong>{{ username }}</strong> &middot; <a href="{{ url_for('logout') }}">Log Out</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="dash-wrap">
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Control row: hamburger / dropdown menu + back to dashboard -->
+        <div class="control-row">
+            <div class="menu-wrap">
+                <button id="menuBtn" class="hamburger-btn" title="Choose market">
+                    <span></span><span></span><span></span>
+                </button>
+                <div id="dropdownMenu" class="dropdown-menu hidden">
+                    <a class="dropdown-item" href="{{ url_for('dashboard') }}">Dashboard <small>Market Overview</small></a>
+                    <a class="dropdown-item" href="{{ url_for('portfolio_page') }}">My Portfolio <small>Holdings &amp; Trade History</small></a>
+                    <a class="dropdown-item" href="{{ url_for('market_page', market='ISE') }}">Indian Stock Exchange <small>Portfolio &amp; Wallet</small></a>
+                    <a class="dropdown-item" href="{{ url_for('market_page', market='USE') }}">US Stock Exchange <small>Portfolio &amp; Wallet</small></a>
+                    <a class="dropdown-item" href="{{ url_for('market_page', market='CCME') }}">Crypto Currency Market Exchange <small>Portfolio &amp; Wallet</small></a>
+                </div>
+            </div>
+            <div class="portfolio-header-actions">
+                <a href="{{ url_for('dashboard') }}" class="btn btn-navy back-to-dash-btn">&larr; Back to Dashboard</a>
+                <a href="{{ url_for('portfolio_page') }}" class="btn btn-navy back-to-dash-btn">View Portfolio</a>
+            </div>
+        </div>
+
+        <!-- Name of the coin or share -->
+        <div class="asset-header">
+            <div>
+                <h2>{{ display_name }}</h2>
+                <span class="asset-type-badge {{ asset_type }}">
+                    {{ "Cryptocurrency" if asset_type == "crypto" else "Stock" }} &middot; {{ symbol }}
+                </span>
+            </div>
+            <div class="action-row" style="margin: 0;">
+                <button type="button" class="btn-buy" id="assetBuyBtn" style="padding: 12px 28px; font-size: 15px;">Buy Now</button>
+            </div>
+        </div>
+
+        <!-- Chart Mode Switcher & Timeframe Selector -->
+        <div class="chart-header-bar">
+            <div class="chart-view-toggle">
+                <button type="button" class="btn-chart-mode active" id="modeTradingViewWidget" data-mode="tv-widget">
+                    <span>📊 TradingView Live Market</span>
+                </button>
+                <button type="button" class="btn-chart-mode" id="modeCustomApi" data-mode="custom-api">
+                    <span>⚡ Custom API Chart (TradingView Engine)</span>
+                </button>
+            </div>
+            <div class="timeframe-buttons" id="customTimeframes" style="display: none;">
+                <button type="button" class="tf-btn active" data-range="24H">24H</button>
+                <button type="button" class="tf-btn" data-range="1W">1W</button>
+                <button type="button" class="tf-btn" data-range="1M">1M</button>
+                <button type="button" class="tf-btn" data-range="1Y">1Y</button>
+            </div>
+        </div>
+
+        <!-- Chart Containers -->
+        <div class="chart-panel" style="padding: 0; overflow: hidden; height: 520px; position: relative;">
+            <!-- 1. TradingView Advanced Real-Time Widget -->
+            <div id="tradingview_widget_wrap" style="height: 100%; width: 100%;">
+                <div id="tradingview_chart" style="height: 100%; width: 100%;"></div>
+            </div>
+
+            <!-- 2. Custom API Chart (Powered by Official TradingView Lightweight Charts) -->
+            <div id="custom_api_chart_wrap" style="height: 100%; width: 100%; display: none; background: #ffffff;">
+                <div id="custom_tradingview_container" style="height: 100%; width: 100%;"></div>
+            </div>
+        </div>
+
+        <!-- Price and info -->
+        <div class="stats-panel">
+            <div class="stat-box">
+                <span class="stat-label">Current Price</span>
+                <span id="statCurrent" class="stat-value">--</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">Period Low</span>
+                <span id="statLow" class="stat-value">--</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">Period High</span>
+                <span id="statHigh" class="stat-value">--</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">Change (%)</span>
+                <span id="statChangePercent" class="stat-value">--</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">Change (Value)</span>
+                <span id="statChangeValue" class="stat-value">--</span>
+            </div>
+        </div>
+
+        <p class="refresh-note">Real-time charts powered by TradingView &middot; Live execution and paper portfolio tracking.</p>
+    </div>
+
+    <!-- TradingView Embed Scripts -->
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <script type="text/javascript" src="https://unpkg.com/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/trade_modal.js') }}"></script>
+    <script>
+        window.TRADEVERSE_ASSET_SYMBOL = "{{ symbol }}";
+        window.TRADEVERSE_ASSET_TYPE = "{{ asset_type }}";
+        // User Custom API Configuration:
+        // Set your custom API URL here if you want the browser to query your API directly.
+        // If left empty, it uses TradeVerse backend proxy (/api/asset/.../chart) which supports CUSTOM_PRICE_API_URL and CUSTOM_CHART_API_URL.
+        window.TRADEVERSE_CUSTOM_CHART_API = "";
+    </script>
+    <script src="{{ url_for('static', filename='js/asset.js') }}"></script>
+</body>
+</html>
