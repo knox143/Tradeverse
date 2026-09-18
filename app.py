@@ -14,6 +14,24 @@ import price_service
 
 app = Flask(__name__, static_folder="public/static", static_url_path="/static")
 
+class StripPrefixMiddleware:
+    """WSGI middleware to normalize PATH_INFO for Vercel serverless rewrites."""
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        path_info = environ.get("PATH_INFO", "")
+        for prefix in ("/api/index.py", "/api/index", "/api/app.py", "/api/app"):
+            if path_info == prefix:
+                environ["PATH_INFO"] = "/"
+                break
+            elif path_info.startswith(prefix + "/"):
+                environ["PATH_INFO"] = path_info[len(prefix):] or "/"
+                break
+        return self.wsgi_app(environ, start_response)
+
+app.wsgi_app = StripPrefixMiddleware(app.wsgi_app)
+
 FLASK_SECRET_KEY = os.getenv("FLASK_SECRET_KEY", "").strip() or "tradeverse-secret-production-key-2026-safe"
 app.secret_key = FLASK_SECRET_KEY
 app.config.update(
@@ -97,6 +115,9 @@ if os.getenv("TRADEVERSE_BOOTSTRAP_ADMIN", "0") == "1":
 
 
 @app.route("/")
+@app.route("/api/index")
+@app.route("/api/index/")
+@app.route("/api/index.py")
 def home():
     if "username" in session:
         return redirect(url_for("dashboard"))
