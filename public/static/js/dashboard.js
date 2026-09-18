@@ -130,22 +130,6 @@ function runSearch(query) {
         });
 }
 
-document.addEventListener("DOMContentLoaded", function () {
-    // Hamburger dropdown toggle
-    const menuBtn = document.getElementById("menuBtn");
-    const dropdownMenu = document.getElementById("dropdownMenu");
-
-    menuBtn.addEventListener("click", function (e) {
-        e.stopPropagation();
-        dropdownMenu.classList.toggle("hidden");
-    });
-
-    document.addEventListener("click", function (e) {
-        if (!dropdownMenu.contains(e.target) && e.target !== menuBtn) {
-            dropdownMenu.classList.add("hidden");
-        }
-    });
-
 function loadDashboardPortfolioPreview() {
     fetch("/api/portfolio/summary")
         .then(function (res) { return res.json(); })

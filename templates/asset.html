@@ -15,13 +15,6 @@
                     <img src="{{ url_for('static', filename='images/logo.png') }}" alt="TradeVerse Logo">
                 </a>
             </div>
-            <div class="topbar-nav">
-                <a href="{{ url_for('dashboard') }}" class="topbar-link">Dashboard</a>
-                <a href="{{ url_for('portfolio_page') }}" class="topbar-link">My Portfolio</a>
-                <a href="{{ url_for('market_page', market='ISE') }}" class="topbar-link">Indian Stocks</a>
-                <a href="{{ url_for('market_page', market='USE') }}" class="topbar-link">US Stocks</a>
-                <a href="{{ url_for('market_page', market='CCME') }}" class="topbar-link">Crypto</a>
-            </div>
             <div class="topbar-user">
                 Hi, <strong>{{ username }}</strong> &middot; <a href="{{ url_for('logout') }}">Log Out</a>
             </div>
@@ -46,10 +39,10 @@
                 </button>
                 <div id="dropdownMenu" class="dropdown-menu hidden">
                     <a class="dropdown-item" href="{{ url_for('dashboard') }}">Dashboard <small>Market Overview</small></a>
-                    <a class="dropdown-item" href="{{ url_for('portfolio_page') }}">My Portfolio <small>Holdings &amp; Trade History</small></a>
-                    <a class="dropdown-item" href="{{ url_for('market_page', market='ISE') }}">Indian Stock Exchange <small>Portfolio &amp; Wallet</small></a>
-                    <a class="dropdown-item" href="{{ url_for('market_page', market='USE') }}">US Stock Exchange <small>Portfolio &amp; Wallet</small></a>
-                    <a class="dropdown-item" href="{{ url_for('market_page', market='CCME') }}">Crypto Currency Market Exchange <small>Portfolio &amp; Wallet</small></a>
+                    <a class="dropdown-item" href="{{ url_for('portfolio_page') }}">My Portfolio <small>Active Holdings &amp; Buy/Sell Records</small></a>
+                    <a class="dropdown-item" href="{{ url_for('market_page', market='ISE') }}">Indian Stocks <small>Indian Stock Exchange (₹)</small></a>
+                    <a class="dropdown-item" href="{{ url_for('market_page', market='USE') }}">US Stocks <small>US Stock Exchange ($)</small></a>
+                    <a class="dropdown-item" href="{{ url_for('market_page', market='CCME') }}">Crypto <small>Crypto Currency Market Exchange ($)</small></a>
                 </div>
             </div>
             <div class="portfolio-header-actions">
