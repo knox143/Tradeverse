@@ -20,14 +20,25 @@ class StripPrefixMiddleware:
         self.wsgi_app = wsgi_app
 
     def __call__(self, environ, start_response):
-        path_info = environ.get("PATH_INFO", "")
-        for prefix in ("/api/index.py", "/api/index", "/api/app.py", "/api/app"):
-            if path_info == prefix:
-                environ["PATH_INFO"] = "/"
-                break
-            elif path_info.startswith(prefix + "/"):
-                environ["PATH_INFO"] = path_info[len(prefix):] or "/"
-                break
+        matched_path = environ.get("HTTP_X_MATCHED_PATH") or environ.get("HTTP_X_FORWARDED_URI")
+        if matched_path:
+            for prefix in ("/api/index.py", "/api/index", "/api/app.py", "/api/app"):
+                if matched_path == prefix:
+                    matched_path = "/"
+                    break
+                elif matched_path.startswith(prefix + "/"):
+                    matched_path = matched_path[len(prefix):] or "/"
+                    break
+            environ["PATH_INFO"] = matched_path
+        else:
+            path_info = environ.get("PATH_INFO", "")
+            for prefix in ("/api/index.py", "/api/index", "/api/app.py", "/api/app"):
+                if path_info == prefix:
+                    environ["PATH_INFO"] = "/"
+                    break
+                elif path_info.startswith(prefix + "/"):
+                    environ["PATH_INFO"] = path_info[len(prefix):] or "/"
+                    break
         return self.wsgi_app(environ, start_response)
 
 app.wsgi_app = StripPrefixMiddleware(app.wsgi_app)
