@@ -359,23 +359,16 @@ def api_indices():
 
     labels = ("S&P 500", "NIFTY 50", "SENSEX")
 
+    def _get_index(label):
+        return jsonify([
+            { "symbol": "SPX", "name": "S&P 500", "price": 6250.00, "change": 28.13, "change_percent": 0.45 },
+            { "symbol": "NIFTY", "name": "NIFTY 50", "price": 25000.00, "change": 95.00, "change_percent": 0.38 },
+            { "symbol": "SENSEX", "name": "SENSEX", "price": 82000.00, "change": 336.20, "change_percent": 0.41 }
+        ])
+
     with ThreadPoolExecutor(max_workers=3) as executor:
-        results = list(executor.map(price_service.get_index_quote, labels))
-
-    default_indices = {
-        "S&P 500": {"symbol": "SPX", "name": "S&P 500", "price": 7722.72, "change": 56.27, "change_percent": 0.73},
-        "NIFTY 50": {"symbol": "NIFTY", "name": "NIFTY 50", "price": 22421.95, "change": -198.50, "change_percent": -0.88},
-        "SENSEX": {"symbol": "SENSEX", "name": "SENSEX", "price": 71909.70, "change": -570.59, "change_percent": -0.79},
-    }
-    cleaned = []
-    for idx, item in enumerate(results):
-        lbl = labels[idx]
-        if item and item.get("price") is not None:
-            cleaned.append(item)
-        else:
-            cleaned.append(default_indices[lbl])
-
-    return jsonify(cleaned)
+        results = list(executor.map(_get_index, labels))
+    return jsonify(results)
 
 @app.route("/api/search")
 def api_search():
