@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from concurrent.futures import ThreadPoolExecutor
 import sqlite3
 import os
+import re
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 
@@ -115,8 +116,29 @@ def register():
             flash("Please fill in all fields.", "error")
             return render_template("register.html")
 
+        phone_digits = re.sub(r"\D", "", phone)
+        if not (10 <= len(phone_digits) <= 14):
+            flash("Phone number must be between 10 and 14 digits.", "error")
+            return render_template("register.html")
+
         if len(password) < 6:
             flash("Password must be at least 6 characters long.", "error")
+            return render_template("register.html")
+
+        if not re.search(r"[a-z]", password):
+            flash("Password must include at least one lowercase letter (a-z).", "error")
+            return render_template("register.html")
+
+        if not re.search(r"[A-Z]", password):
+            flash("Password must include at least one uppercase letter (A-Z).", "error")
+            return render_template("register.html")
+
+        if not re.search(r"[0-9]", password):
+            flash("Password must include at least one number (0-9).", "error")
+            return render_template("register.html")
+
+        if not re.search(r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>\/?`~]", password):
+            flash("Password must include at least one special character (!@#$%^&*...).", "error")
             return render_template("register.html")
 
         hashed_password = generate_password_hash(password)
@@ -356,19 +378,8 @@ def api_btc():
 def api_indices():
     if "user_id" not in session:
         return jsonify({"error": "not logged in"}), 401
+    return jsonify(price_service.get_indices())
 
-    labels = ("S&P 500", "NIFTY 50", "SENSEX")
-
-    def _get_index(label):
-        return jsonify([
-            { "symbol": "SPX", "name": "S&P 500", "price": 6250.00, "change": 28.13, "change_percent": 0.45 },
-            { "symbol": "NIFTY", "name": "NIFTY 50", "price": 25000.00, "change": 95.00, "change_percent": 0.38 },
-            { "symbol": "SENSEX", "name": "SENSEX", "price": 82000.00, "change": 336.20, "change_percent": 0.41 }
-        ])
-
-    with ThreadPoolExecutor(max_workers=3) as executor:
-        results = list(executor.map(_get_index, labels))
-    return jsonify(results)
 
 @app.route("/api/search")
 def api_search():

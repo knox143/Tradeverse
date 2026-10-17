@@ -1,6 +1,6 @@
 // TradeVerse dashboard (landing page) logic
 
-const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes, matches backend price cache
+const REFRESH_INTERVAL_MS = 60 * 1000; // 1 minute auto-refresh for real-time pricing
 const SEARCH_DEBOUNCE_MS = 300;
 
 let searchDebounceTimer = null;
@@ -13,25 +13,32 @@ function loadBtcHero() {
         .then((data) => {
             const priceEl = document.getElementById("btcPrice");
             const changeEl = document.getElementById("btcChange");
-            applyQuoteToElements(data, priceEl, changeEl);
+            applyQuoteToElements(data, priceEl, changeEl, true);
         })
         .catch(() => {
             document.getElementById("btcPrice").textContent = "Unavailable";
         });
 }
 
-function applyQuoteToElements(quote, priceEl, changeEl) {
+function applyQuoteToElements(quote, priceEl, changeEl, isBtc) {
     if (!quote || quote.price === null || quote.price === undefined) {
         priceEl.textContent = "Unavailable";
         changeEl.textContent = "";
         return;
     }
 
-    priceEl.textContent = "$" + Number(quote.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    var prefix = "";
+    if (isBtc || quote.symbol === "BTC-USD" || quote.name === "S&P 500") {
+        prefix = "$";
+    } else if (quote.name === "NIFTY 50" || quote.name === "SENSEX") {
+        prefix = "₹";
+    }
+
+    priceEl.textContent = prefix + Number(quote.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     if (quote.change !== null && quote.change !== undefined) {
         const sign = quote.change >= 0 ? "+" : "";
-        changeEl.textContent = sign + quote.change.toFixed(2) + " (" + sign + quote.change_percent.toFixed(2) + "%)";
+        changeEl.textContent = sign + Number(quote.change).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " (" + sign + Number(quote.change_percent).toFixed(2) + "%)";
         changeEl.className = "idx-change " + (quote.change >= 0 ? "up" : "down");
     } else {
         changeEl.textContent = "";
@@ -58,7 +65,7 @@ function loadIndices() {
 
                 const priceEl = box.querySelector(".idx-price");
                 const changeEl = box.querySelector(".idx-change");
-                applyQuoteToElements(idx, priceEl, changeEl);
+                applyQuoteToElements(idx, priceEl, changeEl, false);
             });
         })
         .catch(() => {});

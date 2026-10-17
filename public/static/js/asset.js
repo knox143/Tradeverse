@@ -67,7 +67,15 @@ function initTradingViewWidget() {
             "enable_publishing": false,
             "allow_symbol_change": true,
             "container_id": "tradingview_chart",
-            "hide_side_toolbar": false
+            "hide_side_toolbar": true,
+            "hide_top_toolbar": false,
+            "hide_legend": false,
+            "save_image": false,
+            "details": false,
+            "hotlist": false,
+            "calendar": false,
+            "show_popup_button": false,
+            "withdateranges": false
         });
     }
 }
@@ -86,21 +94,33 @@ function initCustomTradingViewChart(rangeKey) {
             layout: {
                 background: { color: "#ffffff" },
                 textColor: "#334155",
+                padding: { top: 0, bottom: 0, left: 0, right: 0 },
             },
             grid: {
-                vertLines: { color: "#f1f5f9" },
-                horzLines: { color: "#f1f5f9" },
+                vertLines: { color: "#f8fafc" },
+                horzLines: { color: "#f8fafc" },
             },
             crosshair: {
                 mode: LightweightCharts.CrosshairMode.Normal,
             },
             rightPriceScale: {
                 borderColor: "#cbd5e1",
+                autoScale: true,
+                scaleMargins: {
+                    top: 0.02,
+                    bottom: 0.02,
+                },
+                alignLabels: true,
             },
             timeScale: {
                 borderColor: "#cbd5e1",
                 timeVisible: true,
                 secondsVisible: false,
+                fixLeftEdge: true,
+                fixRightEdge: true,
+                rightOffset: 0,
+                barSpacing: 12,
+                minBarSpacing: 3,
             },
         });
 
@@ -119,6 +139,7 @@ function initCustomTradingViewChart(rangeKey) {
                     width: container.clientWidth,
                     height: container.clientHeight,
                 });
+                customChartInstance.timeScale().fitContent();
             }
         });
     }
@@ -157,13 +178,25 @@ function loadCustomChartData(rangeKey) {
             }
 
             if (customCandleSeries && data.candles && data.candles.length) {
-                const formatted = data.candles.map(c => ({
-                    time: typeof c.time === "number" ? c.time : Math.floor(new Date(c.time).getTime() / 1000),
-                    open: Number(c.open !== undefined ? c.open : (c.close !== undefined ? c.close : c.price)),
-                    high: Number(c.high !== undefined ? c.high : (c.close !== undefined ? c.close : c.price)),
-                    low: Number(c.low !== undefined ? c.low : (c.close !== undefined ? c.close : c.price)),
-                    close: Number(c.close !== undefined ? c.close : c.price),
-                })).sort((a, b) => a.time - b.time);
+                const seenTimes = new Set();
+                const formatted = [];
+                const sorted = data.candles
+                    .map(c => ({
+                        time: typeof c.time === "number" ? c.time : Math.floor(new Date(c.time).getTime() / 1000),
+                        open: Number(c.open !== undefined ? c.open : (c.close !== undefined ? c.close : c.price)),
+                        high: Number(c.high !== undefined ? c.high : (c.close !== undefined ? c.close : c.price)),
+                        low: Number(c.low !== undefined ? c.low : (c.close !== undefined ? c.close : c.price)),
+                        close: Number(c.close !== undefined ? c.close : c.price),
+                    }))
+                    .filter(c => Number.isFinite(c.time) && Number.isFinite(c.close))
+                    .sort((a, b) => a.time - b.time);
+
+                sorted.forEach(c => {
+                    if (!seenTimes.has(c.time)) {
+                        seenTimes.add(c.time);
+                        formatted.push(c);
+                    }
+                });
 
                 customCandleSeries.setData(formatted);
                 if (customChartInstance) {

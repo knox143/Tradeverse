@@ -48,7 +48,6 @@ function renderHoldingRow(h) {
             "<td class=\"num pl-cell " + plClass + "\">" + plSign + h.profit_loss_percent.toFixed(2) + "%</td>" +
             "<td class=\"actions-cell\">" +
                 "<button type=\"button\" class=\"btn-sell-now\" data-action=\"sell\" data-symbol=\"" + h.name + "\" data-lot-id=\"" + (h.lot_id || "") + "\" data-price=\"" + h.price + "\" data-quantity=\"" + h.quantity + "\">Sell Now</button>" +
-                "<button type=\"button\" class=\"btn-sell-limit\" data-action=\"sell-limit\" data-symbol=\"" + h.name + "\">Sell Limit</button>" +
             "</td>" +
         "</tr>"
     );
@@ -78,12 +77,6 @@ function bindTradeButtons(data) {
                     loadMarketTransactions();
                 }
             });
-        });
-    });
-
-    document.querySelectorAll("[data-action='sell-limit']").forEach(function (button) {
-        button.addEventListener("click", function () {
-            alert("Limit orders are not available yet. Use Sell Now for an immediate paper trade.");
         });
     });
 }

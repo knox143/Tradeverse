@@ -41,15 +41,21 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="phone">Phone Number</label>
-                    <input type="tel" id="phone" name="phone" placeholder="98XXXXXXXX" required>
+                    <label for="phone">Phone Number (10 - 14 digits)</label>
+                    <input type="tel" id="phone" name="phone" placeholder="Enter 10 to 14 digit phone number" minlength="10" maxlength="14" required autocomplete="tel">
                 </div>
 
                 <div class="form-group">
                     <label for="password">Password</label>
                     <div class="password-wrap">
-                        <input type="password" id="password" name="password" placeholder="At least 6 characters" required>
+                        <input type="password" id="password" name="password" placeholder="Enter strong password" required autocomplete="new-password">
                         <span class="toggle-pw" onclick="togglePassword('password', this)">SHOW</span>
+                    </div>
+                    <div id="pwRequirements" class="pw-requirements">
+                        <div class="pw-rule" id="rule-lower"><span class="rule-icon">&#10007;</span> At least one lowercase letter (a-z)</div>
+                        <div class="pw-rule" id="rule-upper"><span class="rule-icon">&#10007;</span> At least one uppercase letter (A-Z)</div>
+                        <div class="pw-rule" id="rule-number"><span class="rule-icon">&#10007;</span> At least one number (0-9)</div>
+                        <div class="pw-rule" id="rule-special"><span class="rule-icon">&#10007;</span> At least one special character (!@#$%^&*...)</div>
                     </div>
                 </div>
 
