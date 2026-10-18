@@ -357,22 +357,6 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // Bitcoin Hero Touch Trading buttons
-    const btcBuyBtn = document.getElementById("btcTouchBuy");
-    const btcSellBtn = document.getElementById("btcTouchSell");
-    if (btcBuyBtn) {
-        btcBuyBtn.addEventListener("click", function () {
-            const price = currentBtcData && currentBtcData.price ? currentBtcData.price : 95000;
-            handleDashboardTrade("buy", "BTC-USD", "crypto", "CCME", "$", price);
-        });
-    }
-    if (btcSellBtn) {
-        btcSellBtn.addEventListener("click", function () {
-            const price = currentBtcData && currentBtcData.price ? currentBtcData.price : 95000;
-            handleDashboardTrade("sell", "BTC-USD", "crypto", "CCME", "$", price);
-        });
-    }
-
     // Live search wiring
     const searchInput = document.getElementById("searchInput");
     const searchBtn = document.getElementById("searchBtn");
