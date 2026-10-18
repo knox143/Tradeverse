@@ -322,7 +322,7 @@ function submitQuickBuy() {
     const submitBtn = document.getElementById('quickTradeSubmit');
 
     if (!quickBuyState.symbol) {
-        errorEl.textContent = 'Please enter or select an asset symbol.';
+        errorEl.textContent = 'Please enter or select an asset.';
         errorEl.classList.remove('hidden');
         return;
     }
