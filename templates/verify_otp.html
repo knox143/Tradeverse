@@ -31,6 +31,14 @@
                 {% endif %}
             {% endwith %}
 
+            {% if demo_otp %}
+            <div style="background: #e0f2fe; border: 1px solid #7dd3fc; border-radius: 6px; padding: 14px 16px; margin: 15px 0 20px 0; text-align: center;">
+                <div style="font-size: 11.5px; color: #0369a1; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Verification Code</div>
+                <div style="font-size: 30px; font-weight: 800; color: #0284c7; letter-spacing: 6px; margin: 6px 0;" id="demoOtpDisplay">{{ demo_otp }}</div>
+                <button type="button" onclick="document.getElementById('otp').value='{{ demo_otp }}'; document.getElementById('otp').focus();" style="background: #0284c7; color: #fff; border: none; border-radius: 4px; padding: 6px 14px; font-size: 12px; cursor: pointer; font-weight: 700;">Click to Auto-Fill Code</button>
+            </div>
+            {% endif %}
+
             <form method="POST" action="{{ url_for('verify_otp') }}">
                 <div class="form-group">
                     <label for="otp">6-Digit Verification Code</label>

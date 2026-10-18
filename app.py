@@ -165,12 +165,21 @@ def enforce_single_device_session():
     if request.path.startswith("/static") or request.endpoint in ("login", "register", "verify_otp", "resend_otp", "forgot_password", "api_captcha", "home", None):
         return
 
+    # In serverless environments (like Vercel) where filesystem is ephemeral per lambda instance,
+    # instance-local SQLite session checks cause false-positive logouts across concurrent lambdas.
+    if IS_VERCEL:
+        return
+
+    # Never clear session on API calls
+    if request.path.startswith("/api/"):
+        return
+
     if "user_id" in session:
         conn = get_db_connection()
         user = conn.execute("SELECT session_token FROM users WHERE id = ?", (session["user_id"],)).fetchone()
         conn.close()
         current_token = session.get("session_token")
-        if not user or (user["session_token"] and user["session_token"] != current_token):
+        if user and user["session_token"] and current_token and user["session_token"] != current_token:
             session.clear()
             flash("Your account was logged in from another device. For security, this session was terminated.", "error")
             return redirect(url_for("login"))
@@ -253,8 +262,11 @@ def register():
         }
 
         # Send Email OTP
-        send_verification_otp(email, otp)
-        flash(f"A 6-digit verification code has been sent to {email}. (Demo OTP: {otp})", "info")
+        sent = send_verification_otp(email, otp)
+        if sent:
+            flash(f"A 6-digit verification code has been sent to {email}.", "success")
+        else:
+            flash(f"Verification code: {otp} (Demo Mode - SMTP unconfigured).", "info")
         return redirect(url_for("verify_otp"))
 
     return render_template("register.html")
@@ -267,16 +279,18 @@ def verify_otp():
         flash("No pending registration found. Please register first.", "error")
         return redirect(url_for("register"))
 
+    demo_otp = pending.get("otp")
+
     if request.method == "POST":
         user_otp = request.form.get("otp", "").strip()
         now = time.time()
         if now - pending.get("created_at", 0) > 600:
             flash("Verification OTP has expired. Please request a new code.", "error")
-            return render_template("verify_otp.html", email=pending["email"])
+            return render_template("verify_otp.html", email=pending["email"], demo_otp=demo_otp)
 
         if user_otp != pending.get("otp"):
-            flash("Invalid OTP code. Please check your email and try again.", "error")
-            return render_template("verify_otp.html", email=pending["email"])
+            flash("Invalid OTP code. Please check your email or enter the code shown above.", "error")
+            return render_template("verify_otp.html", email=pending["email"], demo_otp=demo_otp)
 
         # OTP verified -> insert user into database
         conn = get_db_connection()
@@ -299,7 +313,7 @@ def verify_otp():
             flash("Username or email already exists.", "error")
             return render_template("register.html")
 
-    return render_template("verify_otp.html", email=pending["email"])
+    return render_template("verify_otp.html", email=pending["email"], demo_otp=demo_otp)
 
 
 @app.route("/resend-otp")
@@ -313,8 +327,11 @@ def resend_otp():
     pending["otp"] = new_otp
     pending["created_at"] = time.time()
     session["pending_reg"] = pending
-    send_verification_otp(pending["email"], new_otp)
-    flash(f"A new verification OTP has been sent to {pending['email']}. (Demo OTP: {new_otp})", "info")
+    sent = send_verification_otp(pending["email"], new_otp)
+    if sent:
+        flash(f"A new verification code has been sent to {pending['email']}.", "success")
+    else:
+        flash(f"New verification code: {new_otp} (Demo Mode - SMTP unconfigured).", "info")
     return redirect(url_for("verify_otp"))
 
 
