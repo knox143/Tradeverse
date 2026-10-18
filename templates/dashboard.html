@@ -16,7 +16,7 @@
                 </a>
             </div>
             <div class="topbar-user">
-                Hi, <strong>{{ username }}</strong> &middot; <a href="{{ url_for('admin_users') }}" style="color: #60a5fa; font-weight: 600;">Users DB</a> &middot; <a href="{{ url_for('logout') }}">Log Out</a>
+                Hi, <strong>{{ username }}</strong>{% if username == 'admin' %} &middot; <a href="{{ url_for('admin_users') }}" style="color: #60a5fa; font-weight: 600;">Users DB</a>{% endif %} &middot; <a href="{{ url_for('logout') }}">Log Out</a>
             </div>
         </div>
     </div>
@@ -43,7 +43,9 @@
                     <a class="dropdown-item" href="{{ url_for('market_page', market='ISE') }}">Indian Stocks <small>Indian Stock Exchange (₹)</small></a>
                     <a class="dropdown-item" href="{{ url_for('market_page', market='USE') }}">US Stocks <small>US Stock Exchange ($)</small></a>
                     <a class="dropdown-item" href="{{ url_for('market_page', market='CCME') }}">Crypto <small>Crypto Currency Market Exchange ($)</small></a>
+                    {% if username == 'admin' %}
                     <a class="dropdown-item" href="{{ url_for('admin_users') }}">User Database <small>View All Registered Users &amp; IDs</small></a>
+                    {% endif %}
                 </div>
             </div>
 

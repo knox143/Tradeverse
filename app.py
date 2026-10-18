@@ -82,10 +82,10 @@ def init_db():
     conn.close()
 
 
-SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "").strip()
 SMTP_PASS = os.getenv("SMTP_PASS", "").strip()
+SMTP_HOST = os.getenv("SMTP_HOST", "").strip() or ("smtp.gmail.com" if SMTP_USER else "")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_FROM = os.getenv("SMTP_FROM", "").strip() or SMTP_USER or "noreply@tradeverse.com"
 
 def send_verification_otp(email, otp):
@@ -93,17 +93,29 @@ def send_verification_otp(email, otp):
     print(f"[OTP SERVICE] Email OTP for {email}: {otp}")
     if SMTP_HOST and SMTP_USER and SMTP_PASS:
         try:
-            msg = MIMEText(f"Hello,\n\nYour TradeVerse registration verification OTP is: {otp}\nThis code will expire in 10 minutes.\n\nHappy Trading,\nTradeVerse Team")
-            msg["Subject"] = "TradeVerse - Email Verification Code"
+            msg = MIMEText(
+                f"Hello,\n\n"
+                f"Your TradeVerse verification code is: {otp}\n\n"
+                f"Enter this 6-digit code on the registration page to verify your email.\n"
+                f"This code will expire in 10 minutes.\n\n"
+                f"Happy Trading,\nTradeVerse Team"
+            )
+            msg["Subject"] = f"{otp} is your TradeVerse verification code"
             msg["From"] = SMTP_FROM
             msg["To"] = email
-            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=5) as server:
-                server.starttls()
-                server.login(SMTP_USER, SMTP_PASS)
-                server.sendmail(SMTP_FROM, [email], msg.as_string())
+
+            if SMTP_PORT == 465:
+                with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+                    server.login(SMTP_USER, SMTP_PASS)
+                    server.sendmail(SMTP_FROM, [email], msg.as_string())
+            else:
+                with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+                    server.starttls()
+                    server.login(SMTP_USER, SMTP_PASS)
+                    server.sendmail(SMTP_FROM, [email], msg.as_string())
             return True
         except Exception as e:
-            app.logger.warning(f"SMTP error sending OTP: {e}")
+            app.logger.warning(f"SMTP error sending OTP to {email}: {e}")
             return False
     return False
 
@@ -264,9 +276,9 @@ def register():
         # Send Email OTP
         sent = send_verification_otp(email, otp)
         if sent:
-            flash(f"A 6-digit verification code has been sent to {email}.", "success")
+            flash(f"A 6-digit verification code has been sent to {email}. Please check your inbox.", "info")
         else:
-            flash(f"Verification code: {otp} (Demo Mode - SMTP unconfigured).", "info")
+            flash(f"Unable to send email to {email}. Please ensure SMTP mail settings are configured.", "error")
         return redirect(url_for("verify_otp"))
 
     return render_template("register.html")
@@ -279,18 +291,16 @@ def verify_otp():
         flash("No pending registration found. Please register first.", "error")
         return redirect(url_for("register"))
 
-    demo_otp = pending.get("otp")
-
     if request.method == "POST":
         user_otp = request.form.get("otp", "").strip()
         now = time.time()
         if now - pending.get("created_at", 0) > 600:
             flash("Verification OTP has expired. Please request a new code.", "error")
-            return render_template("verify_otp.html", email=pending["email"], demo_otp=demo_otp)
+            return render_template("verify_otp.html", email=pending["email"])
 
         if user_otp != pending.get("otp"):
-            flash("Invalid OTP code. Please check your email or enter the code shown above.", "error")
-            return render_template("verify_otp.html", email=pending["email"], demo_otp=demo_otp)
+            flash("Invalid OTP code. Please check your email and try again.", "error")
+            return render_template("verify_otp.html", email=pending["email"])
 
         # OTP verified -> insert user into database
         conn = get_db_connection()
@@ -313,7 +323,7 @@ def verify_otp():
             flash("Username or email already exists.", "error")
             return render_template("register.html")
 
-    return render_template("verify_otp.html", email=pending["email"], demo_otp=demo_otp)
+    return render_template("verify_otp.html", email=pending["email"])
 
 
 @app.route("/resend-otp")
@@ -329,9 +339,9 @@ def resend_otp():
     session["pending_reg"] = pending
     sent = send_verification_otp(pending["email"], new_otp)
     if sent:
-        flash(f"A new verification code has been sent to {pending['email']}.", "success")
+        flash(f"A new verification code has been sent to {pending['email']}. Please check your inbox.", "info")
     else:
-        flash(f"New verification code: {new_otp} (Demo Mode - SMTP unconfigured).", "info")
+        flash("Unable to send email. Please ensure SMTP mail settings are configured.", "error")
     return redirect(url_for("verify_otp"))
 
 
@@ -628,6 +638,10 @@ def api_hot_assets():
 
 @app.route("/admin/users")
 def admin_users():
+    if session.get("username") != "admin":
+        flash("Access denied. Admin privileges required.", "error")
+        return redirect(url_for("dashboard"))
+
     conn = get_db_connection()
     users = conn.execute(
         "SELECT id, username, email, phone, session_token FROM users ORDER BY id ASC"
@@ -651,6 +665,9 @@ def admin_users():
 
 @app.route("/api/admin/users")
 def api_admin_users():
+    if session.get("username") != "admin":
+        return jsonify({"error": "unauthorized", "message": "Admin privileges required"}), 403
+
     conn = get_db_connection()
     users = conn.execute(
         "SELECT id, username, email, phone, session_token FROM users ORDER BY id ASC"
