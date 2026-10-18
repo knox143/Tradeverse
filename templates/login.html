@@ -30,8 +30,8 @@
 
             <form method="POST" action="{{ url_for('login') }}">
                 <div class="form-group">
-                    <label for="username">Username</label>
-                    <input type="text" id="username" name="username" placeholder="Enter your username" required>
+                    <label for="identifier">Username or Mobile Number</label>
+                    <input type="text" id="identifier" name="identifier" placeholder="Enter username or registered mobile number" required autocomplete="username">
                 </div>
 
                 <div class="form-group">
@@ -40,6 +40,16 @@
                         <input type="password" id="password" name="password" placeholder="Enter your password" required>
                         <span class="toggle-pw" onclick="togglePassword('password', this)">SHOW</span>
                     </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="captcha">Security Verification (DoS Mitigation)</label>
+                    <div class="captcha-row">
+                        <div class="captcha-box" id="captchaBox" onclick="refreshCaptcha()" title="Click to refresh captcha">{{ captcha_text or 'TR78K' }}</div>
+                        <button type="button" class="btn-captcha-refresh" onclick="refreshCaptcha()" title="Refresh code">&#x21bb;</button>
+                        <input type="text" id="captcha" name="captcha" placeholder="Enter code" maxlength="6" required autocomplete="off" style="text-transform: uppercase;">
+                    </div>
+                    <small class="form-hint">Type the security characters shown above (prevents automated bot attacks).</small>
                 </div>
 
                 <div class="forgot-row">

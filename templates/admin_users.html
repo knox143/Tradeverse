@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Users Database & Login IDs - TradeVerse Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .admin-wrap {
+            max-width: 1100px;
+            margin: 30px auto;
+            padding: 24px;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+        }
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #eef2f6;
+            padding-bottom: 16px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .admin-title h1 {
+            font-size: 24px;
+            color: #0b1e3f;
+            margin: 0;
+        }
+        .admin-title p {
+            font-size: 14px;
+            color: #64748b;
+            margin: 4px 0 0 0;
+        }
+        .admin-stats {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .admin-stat-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 14px 20px;
+            flex: 1;
+        }
+        .admin-stat-card .val {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1e3a8a;
+        }
+        .admin-stat-card .lbl {
+            font-size: 12px;
+            color: #64748b;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        .admin-search-bar {
+            margin-bottom: 16px;
+        }
+        .admin-search-bar input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        .admin-table th {
+            background: #0b1e3f;
+            color: #ffffff;
+            text-align: left;
+            padding: 12px 14px;
+            font-weight: 600;
+        }
+        .admin-table td {
+            padding: 12px 14px;
+            border-bottom: 1px solid #e2e8f0;
+            color: #1e293b;
+        }
+        .admin-table tr:hover {
+            background: #f8fafc;
+        }
+        .session-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .session-badge.active {
+            background: #dcfce7;
+            color: #15803d;
+        }
+        .session-badge.idle {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+        .cli-tip {
+            margin-top: 24px;
+            padding: 16px;
+            background: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #1e3a8a;
+        }
+        .cli-tip code {
+            background: #dbeafe;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="topbar">
+        <div class="topbar-inner">
+            <div class="logo-wrap">
+                <a href="{{ url_for('dashboard') }}">
+                    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="TradeVerse Logo">
+                </a>
+            </div>
+            <div class="topbar-user">
+                <a href="{{ url_for('dashboard') }}" class="btn-sm" style="color: #ffffff; text-decoration: underline; font-weight: 600;">&larr; Back to Dashboard</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="admin-wrap">
+        <div class="admin-header">
+            <div class="admin-title">
+                <h1>Registered Users Database</h1>
+                <p>Complete directory of all TradeVerse registered user accounts and login IDs.</p>
+            </div>
+            <div>
+                <a href="{{ url_for('api_admin_users') }}" target="_blank" class="btn btn-navy" style="display:inline-block; padding: 8px 14px; font-size: 13px; text-decoration:none;">View Raw JSON API</a>
+            </div>
+        </div>
+
+        <div class="admin-stats">
+            <div class="admin-stat-card">
+                <div class="val">{{ users|length }}</div>
+                <div class="lbl">Total Registered Users</div>
+            </div>
+            <div class="admin-stat-card">
+                <div class="val">{{ users|selectattr("has_active_session")|list|length }}</div>
+                <div class="lbl">Active Single Sessions</div>
+            </div>
+            <div class="admin-stat-card">
+                <div class="val">SQLite + TinyDB</div>
+                <div class="lbl">Storage Engines</div>
+            </div>
+        </div>
+
+        <div class="admin-search-bar">
+            <input type="text" id="userSearchInput" placeholder="Filter by User ID, Username, Email, or Mobile Number..." oninput="filterUsersTable()">
+        </div>
+
+        <div style="overflow-x: auto;">
+            <table class="admin-table" id="usersTable">
+                <thead>
+                    <tr>
+                        <th style="width: 60px;">ID</th>
+                        <th>Login ID (Username)</th>
+                        <th>Email Address</th>
+                        <th>Mobile Number</th>
+                        <th>Active Device Session</th>
+                        <th>Wallet Balances</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in users %}
+                    <tr>
+                        <td><strong>#{{ u.id }}</strong></td>
+                        <td><strong style="color: #0b1e3f;">{{ u.username }}</strong></td>
+                        <td>{{ u.email }}</td>
+                        <td><code>{{ u.phone }}</code></td>
+                        <td>
+                            {% if u.has_active_session %}
+                                <span class="session-badge active">● Active Session</span>
+                            {% else %}
+                                <span class="session-badge idle">○ Idle / Logged Out</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small>
+                                ISE: ₹{{ "{:,.2f}".format(u.wallets.get('ISE', 0)) }}<br>
+                                USE: ${{ "{:,.2f}".format(u.wallets.get('USE', 0)) }}<br>
+                                CCME: ${{ "{:,.2f}".format(u.wallets.get('CCME', 0)) }}
+                            </small>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" style="text-align: center; color: #64748b; padding: 24px;">No users found in database.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="cli-tip">
+            <strong>Terminal / CLI Direct Access:</strong><br>
+            To view all users directly in your terminal, open your command prompt / powershell and run:<br>
+            <code>python view_users.py</code><br>
+            Or run SQLite query directly: <code>sqlite3 tradeverse.db "SELECT id, username, email, phone FROM users;"</code>
+        </div>
+    </div>
+
+    <script>
+        function filterUsersTable() {
+            var q = document.getElementById("userSearchInput").value.toLowerCase();
+            var rows = document.querySelectorAll("#usersTable tbody tr");
+            rows.forEach(function(row) {
+                var text = row.textContent.toLowerCase();
+                row.style.display = text.indexOf(q) !== -1 ? "" : "none";
+            });
+        }
+    </script>
+</body>
+</html>

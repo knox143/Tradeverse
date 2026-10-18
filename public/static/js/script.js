@@ -103,3 +103,25 @@ function validateRegisterForm() {
     return true;
 }
 
+// Refresh login captcha code
+function refreshCaptcha() {
+    var box = document.getElementById("captchaBox");
+    if (!box) return;
+    box.textContent = "...";
+    fetch("/api/captcha")
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            if (data && data.captcha) {
+                box.textContent = data.captcha;
+                var input = document.getElementById("captcha");
+                if (input) {
+                    input.value = "";
+                    input.focus();
+                }
+            }
+        })
+        .catch(function () {
+            box.textContent = "TR78K";
+        });
+}
+

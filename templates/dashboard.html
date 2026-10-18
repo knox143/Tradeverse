@@ -16,7 +16,7 @@
                 </a>
             </div>
             <div class="topbar-user">
-                Hi, <strong>{{ username }}</strong> &middot; <a href="{{ url_for('logout') }}">Log Out</a>
+                Hi, <strong>{{ username }}</strong> &middot; <a href="{{ url_for('admin_users') }}" style="color: #60a5fa; font-weight: 600;">Users DB</a> &middot; <a href="{{ url_for('logout') }}">Log Out</a>
             </div>
         </div>
     </div>
@@ -43,6 +43,7 @@
                     <a class="dropdown-item" href="{{ url_for('market_page', market='ISE') }}">Indian Stocks <small>Indian Stock Exchange (₹)</small></a>
                     <a class="dropdown-item" href="{{ url_for('market_page', market='USE') }}">US Stocks <small>US Stock Exchange ($)</small></a>
                     <a class="dropdown-item" href="{{ url_for('market_page', market='CCME') }}">Crypto <small>Crypto Currency Market Exchange ($)</small></a>
+                    <a class="dropdown-item" href="{{ url_for('admin_users') }}">User Database <small>View All Registered Users &amp; IDs</small></a>
                 </div>
             </div>
 
@@ -55,13 +56,17 @@
             </div>
         </div>
 
-        <!-- Bitcoin hero box -->
+        <!-- Bitcoin hero box with touch trading -->
         <div class="btc-hero">
             <img src="{{ url_for('static', filename='images/bitcoin.png') }}" alt="Bitcoin" class="btc-hero-img">
             <div class="btc-hero-info">
-                <span class="btc-hero-label">Bitcoin</span>
+                <span class="btc-hero-label">Bitcoin &middot; BTC-USD</span>
                 <span id="btcPrice" class="btc-hero-price">--</span>
                 <span id="btcChange" class="idx-change">--</span>
+            </div>
+            <div class="btc-hero-actions">
+                <button type="button" class="btn-touch btn-touch-buy" id="btcTouchBuy">Touch Buy</button>
+                <button type="button" class="btn-touch btn-touch-sell" id="btcTouchSell">Touch Sell</button>
             </div>
         </div>
 
@@ -83,6 +88,20 @@
                 <h3>SENSEX</h3>
                 <div class="idx-price">--</div>
                 <div class="idx-change">--</div>
+            </div>
+        </div>
+
+        <!-- Quick Touch Trade (Live Hot Assets) -->
+        <div class="touch-trade-section">
+            <div class="tts-header">
+                <div>
+                    <h3>Quick Touch Trade &middot; Real-Time Execution</h3>
+                    <p class="tts-sub">Tap or click Buy / Sell on any hot stock or cryptocurrency to trade instantly directly from the dashboard.</p>
+                </div>
+                <div class="tts-badge">Live Yahoo Pricing</div>
+            </div>
+            <div class="touch-assets-grid" id="touchAssetsGrid">
+                <div class="tts-loading">Loading live tradeable assets...</div>
             </div>
         </div>
 
@@ -137,6 +156,7 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/trade_modal.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 </body>
 </html>

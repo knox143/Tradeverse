@@ -1,8 +1,15 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, Response
 from concurrent.futures import ThreadPoolExecutor
 import sqlite3
 import os
 import re
+import secrets
+import random
+import time
+import json
+import hashlib
+import smtplib
+from email.mime.text import MIMEText
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 
@@ -62,11 +69,66 @@ def init_db():
             username TEXT UNIQUE NOT NULL,
             email TEXT UNIQUE NOT NULL,
             phone TEXT NOT NULL,
-            password TEXT NOT NULL
+            password TEXT NOT NULL,
+            session_token TEXT
         )
     """)
+    # Ensure session_token column exists in existing database
+    cursor = conn.execute("PRAGMA table_info(users)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if "session_token" not in columns:
+        conn.execute("ALTER TABLE users ADD COLUMN session_token TEXT")
     conn.commit()
     conn.close()
+
+
+SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "").strip()
+SMTP_PASS = os.getenv("SMTP_PASS", "").strip()
+SMTP_FROM = os.getenv("SMTP_FROM", "").strip() or SMTP_USER or "noreply@tradeverse.com"
+
+def send_verification_otp(email, otp):
+    """Sends OTP via SMTP if configured; always logs in console."""
+    print(f"[OTP SERVICE] Email OTP for {email}: {otp}")
+    if SMTP_HOST and SMTP_USER and SMTP_PASS:
+        try:
+            msg = MIMEText(f"Hello,\n\nYour TradeVerse registration verification OTP is: {otp}\nThis code will expire in 10 minutes.\n\nHappy Trading,\nTradeVerse Team")
+            msg["Subject"] = "TradeVerse - Email Verification Code"
+            msg["From"] = SMTP_FROM
+            msg["To"] = email
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=5) as server:
+                server.starttls()
+                server.login(SMTP_USER, SMTP_PASS)
+                server.sendmail(SMTP_FROM, [email], msg.as_string())
+            return True
+        except Exception as e:
+            app.logger.warning(f"SMTP error sending OTP: {e}")
+            return False
+    return False
+
+def generate_captcha_text():
+    chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    return "".join(random.choices(chars, k=5))
+
+_login_failures = {} # ip -> [timestamps]
+
+def is_ip_rate_limited(ip):
+    now = time.time()
+    attempts = [t for t in _login_failures.get(ip, []) if now - t < 300]
+    _login_failures[ip] = attempts
+    return len(attempts) >= 5
+
+def record_login_failure(ip):
+    now = time.time()
+    attempts = [t for t in _login_failures.get(ip, []) if now - t < 300]
+    attempts.append(now)
+    _login_failures[ip] = attempts
+    if len(attempts) >= 3:
+        time.sleep(min(2 ** (len(attempts) - 3), 3))
+
+def clear_login_failure(ip):
+    _login_failures.pop(ip, None)
 
 
 def ensure_admin_account():
@@ -97,6 +159,24 @@ if os.getenv("TRADEVERSE_BOOTSTRAP_ADMIN", "0") == "1":
     ensure_admin_account()
 
 
+@app.before_request
+def enforce_single_device_session():
+    # Allow static assets and unauthenticated endpoints
+    if request.path.startswith("/static") or request.endpoint in ("login", "register", "verify_otp", "resend_otp", "forgot_password", "api_captcha", "home", None):
+        return
+
+    if "user_id" in session:
+        conn = get_db_connection()
+        user = conn.execute("SELECT session_token FROM users WHERE id = ?", (session["user_id"],)).fetchone()
+        conn.close()
+        current_token = session.get("session_token")
+        if not user or (user["session_token"] and user["session_token"] != current_token):
+            session.clear()
+            flash("Your account was logged in from another device. For security, this session was terminated.", "error")
+            return redirect(url_for("login"))
+
+
+
 @app.route("/")
 def home():
     if "username" in session:
@@ -109,17 +189,25 @@ def register():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         email = request.form.get("email", "").strip()
-        phone = request.form.get("phone", "").strip()
+        country_code = request.form.get("country_code", "+91").strip()
+        phone_input = request.form.get("phone", "").strip()
         password = request.form.get("password", "")
 
-        if not username or not email or not phone or not password:
+        if not username or not email or not phone_input or not password:
             flash("Please fill in all fields.", "error")
             return render_template("register.html")
 
-        phone_digits = re.sub(r"\D", "", phone)
-        if not (10 <= len(phone_digits) <= 14):
-            flash("Phone number must be between 10 and 14 digits.", "error")
+        # Validate country code
+        if not re.match(r"^\+\d{1,4}$", country_code):
+            flash("Please select a valid country code.", "error")
             return render_template("register.html")
+
+        # Strict validation: Mobile number must ONLY contain digits (10 to 14 digits)
+        if not re.match(r"^\d{10,14}$", phone_input):
+            flash("Mobile number must contain digits only (10 to 14 digits), without special characters, spaces, or letters.", "error")
+            return render_template("register.html")
+
+        full_phone = f"{country_code}{phone_input}"
 
         if len(password) < 6:
             flash("Password must be at least 6 characters long.", "error")
@@ -141,54 +229,162 @@ def register():
             flash("Password must include at least one special character (!@#$%^&*...).", "error")
             return render_template("register.html")
 
-        hashed_password = generate_password_hash(password)
+        # Check if username or email already exists in DB
+        conn = get_db_connection()
+        existing = conn.execute(
+            "SELECT id FROM users WHERE LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?)",
+            (username, email),
+        ).fetchone()
+        conn.close()
+        if existing:
+            flash("Username or email already exists. Please choose another.", "error")
+            return render_template("register.html")
 
+        hashed_password = generate_password_hash(password)
+        otp = f"{secrets.randbelow(900000) + 100000}"
+
+        session["pending_reg"] = {
+            "username": username,
+            "email": email,
+            "phone": full_phone,
+            "password": hashed_password,
+            "otp": otp,
+            "created_at": time.time(),
+        }
+
+        # Send Email OTP
+        send_verification_otp(email, otp)
+        flash(f"A 6-digit verification code has been sent to {email}. (Demo OTP: {otp})", "info")
+        return redirect(url_for("verify_otp"))
+
+    return render_template("register.html")
+
+
+@app.route("/verify-otp", methods=["GET", "POST"])
+def verify_otp():
+    pending = session.get("pending_reg")
+    if not pending:
+        flash("No pending registration found. Please register first.", "error")
+        return redirect(url_for("register"))
+
+    if request.method == "POST":
+        user_otp = request.form.get("otp", "").strip()
+        now = time.time()
+        if now - pending.get("created_at", 0) > 600:
+            flash("Verification OTP has expired. Please request a new code.", "error")
+            return render_template("verify_otp.html", email=pending["email"])
+
+        if user_otp != pending.get("otp"):
+            flash("Invalid OTP code. Please check your email and try again.", "error")
+            return render_template("verify_otp.html", email=pending["email"])
+
+        # OTP verified -> insert user into database
         conn = get_db_connection()
         try:
             cur = conn.execute(
                 "INSERT INTO users (username, email, phone, password) VALUES (?, ?, ?, ?)",
-                (username, email, phone, hashed_password),
+                (pending["username"], pending["email"], pending["phone"], pending["password"]),
             )
             conn.commit()
             new_user_id = cur.lastrowid
             conn.close()
 
-            # Every new user starts with empty portfolios + the default wallet amounts:
-            # ISE: 10,00,000 INR | USE: 10,000 USD | CCME: 10,000 USD
-            portfolio_db.create_default_portfolio(new_user_id, username)
-
-            flash("Account created successfully! Please log in.", "success")
+            portfolio_db.create_default_portfolio(new_user_id, pending["username"])
+            session.pop("pending_reg", None)
+            flash("Email verified successfully! Your account has been created. Please log in.", "success")
             return redirect(url_for("login"))
         except sqlite3.IntegrityError:
             conn.close()
+            session.pop("pending_reg", None)
             flash("Username or email already exists.", "error")
             return render_template("register.html")
 
-    return render_template("register.html")
+    return render_template("verify_otp.html", email=pending["email"])
+
+
+@app.route("/resend-otp")
+def resend_otp():
+    pending = session.get("pending_reg")
+    if not pending:
+        flash("No registration in progress.", "error")
+        return redirect(url_for("register"))
+
+    new_otp = f"{secrets.randbelow(900000) + 100000}"
+    pending["otp"] = new_otp
+    pending["created_at"] = time.time()
+    session["pending_reg"] = pending
+    send_verification_otp(pending["email"], new_otp)
+    flash(f"A new verification OTP has been sent to {pending['email']}. (Demo OTP: {new_otp})", "info")
+    return redirect(url_for("verify_otp"))
+
+
+@app.route("/api/captcha")
+def api_captcha():
+    code = generate_captcha_text()
+    session["login_captcha"] = code
+    return jsonify({"captcha": code})
 
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    ip = request.remote_addr or "127.0.0.1"
+
     if request.method == "POST":
-        username = request.form.get("username", "").strip()
+        if is_ip_rate_limited(ip):
+            flash("Too many failed attempts. Please wait 1 minute before trying again to prevent server overload.", "error")
+            return render_template("login.html", captcha_text=session.get("login_captcha", generate_captcha_text()))
+
+        # Verify Captcha
+        user_captcha = request.form.get("captcha", "").strip().upper()
+        expected_captcha = session.get("login_captcha", "").upper()
+        if not user_captcha or user_captcha != expected_captcha:
+            record_login_failure(ip)
+            new_code = generate_captcha_text()
+            session["login_captcha"] = new_code
+            flash("Incorrect captcha security code. Please try again.", "error")
+            return render_template("login.html", captcha_text=new_code)
+
+        # Refresh captcha for subsequent attempts
+        session["login_captcha"] = generate_captcha_text()
+
+        identifier = (request.form.get("identifier") or request.form.get("username", "")).strip()
         password = request.form.get("password", "")
 
         conn = get_db_connection()
+        phone_digits = re.sub(r"\D", "", identifier)
         user = conn.execute(
-            "SELECT * FROM users WHERE username = ?", (username,)
+            """
+            SELECT * FROM users
+            WHERE LOWER(username) = LOWER(?)
+               OR phone = ?
+               OR (LENGTH(?) >= 10 AND phone LIKE ?)
+            """,
+            (identifier, identifier, phone_digits, f"%{phone_digits}"),
         ).fetchone()
-        conn.close()
 
         if user and check_password_hash(user["password"], password):
+            clear_login_failure(ip)
+            # Enforce single active device session
+            new_session_token = secrets.token_hex(24)
+            conn.execute("UPDATE users SET session_token = ? WHERE id = ?", (new_session_token, user["id"]))
+            conn.commit()
+            conn.close()
+
+            session.clear()
             session["username"] = user["username"]
             session["user_id"] = user["id"]
+            session["session_token"] = new_session_token
             flash("Welcome back, " + user["username"] + "!", "success")
             return redirect(url_for("dashboard"))
         else:
-            flash("Invalid username or password.", "error")
-            return render_template("login.html")
+            conn.close()
+            record_login_failure(ip)
+            flash("Invalid username/mobile number or password.", "error")
+            return render_template("login.html", captcha_text=session.get("login_captcha", generate_captcha_text()))
 
-    return render_template("login.html")
+    captcha_code = generate_captcha_text()
+    session["login_captcha"] = captcha_code
+    return render_template("login.html", captcha_text=captcha_code)
 
 
 @app.route("/forgot-password", methods=["GET", "POST"])
@@ -369,16 +565,90 @@ def api_btc():
 
     quote = price_service.get_quote("BTC-USD")
     if quote is None:
-        return jsonify({"price": None, "change": None, "change_percent": None})
+        quote = {"price": None, "change": None, "change_percent": None}
 
-    return jsonify(quote)
+    checksum = price_service.compute_checksum(quote)
+    if request.headers.get("If-None-Match") == checksum:
+        return ("", 304)
+
+    response = jsonify(quote)
+    response.headers["ETag"] = checksum
+    response.headers["X-Checksum"] = checksum
+    return response
 
 
 @app.route("/api/indices")
 def api_indices():
     if "user_id" not in session:
         return jsonify({"error": "not logged in"}), 401
-    return jsonify(price_service.get_indices())
+    data = price_service.get_indices()
+    checksum = price_service.compute_checksum(data)
+
+    if request.headers.get("If-None-Match") == checksum:
+        return ("", 304)
+
+    response = jsonify(data)
+    response.headers["ETag"] = checksum
+    response.headers["X-Checksum"] = checksum
+    return response
+
+
+@app.route("/api/hot-assets")
+def api_hot_assets():
+    if "user_id" not in session:
+        return jsonify({"error": "not logged in"}), 401
+    data = price_service.get_hot_assets()
+    checksum = price_service.compute_checksum(data)
+
+    if request.headers.get("If-None-Match") == checksum:
+        return ("", 304)
+
+    response = jsonify({"data": data, "checksum": checksum})
+    response.headers["ETag"] = checksum
+    response.headers["X-Checksum"] = checksum
+    return response
+
+
+@app.route("/admin/users")
+def admin_users():
+    conn = get_db_connection()
+    users = conn.execute(
+        "SELECT id, username, email, phone, session_token FROM users ORDER BY id ASC"
+    ).fetchall()
+    conn.close()
+
+    user_list = []
+    for u in users:
+        doc = portfolio_db.get_portfolio_doc(u["id"])
+        wallets = doc.get("wallets", {}) if doc else {}
+        user_list.append({
+            "id": u["id"],
+            "username": u["username"],
+            "email": u["email"],
+            "phone": u["phone"],
+            "has_active_session": bool(u["session_token"]),
+            "wallets": wallets,
+        })
+    return render_template("admin_users.html", users=user_list)
+
+
+@app.route("/api/admin/users")
+def api_admin_users():
+    conn = get_db_connection()
+    users = conn.execute(
+        "SELECT id, username, email, phone, session_token FROM users ORDER BY id ASC"
+    ).fetchall()
+    conn.close()
+    return jsonify([
+        {
+            "id": u["id"],
+            "username": u["username"],
+            "email": u["email"],
+            "phone": u["phone"],
+            "has_active_session": bool(u["session_token"]),
+        }
+        for u in users
+    ])
 
 
 @app.route("/api/search")

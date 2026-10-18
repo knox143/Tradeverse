@@ -24,6 +24,8 @@ Config is read from a `.env` file (see `.env.example`) via python-dotenv:
 
 import os
 import time
+import json
+import hashlib
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor
 
@@ -576,6 +578,7 @@ def get_indices():
     """
     Returns real-time quotes for S&P 500, NIFTY 50, and SENSEX
     sourced directly from https://query1.finance.yahoo.com/v8/finance/chart/
+    Parallelized with ThreadPoolExecutor for high performance and low latency.
     """
     index_targets = [
         {"symbol": "^GSPC", "name": "S&P 500", "default_price": 7659.44, "default_change": -84.62, "default_pct": -1.09},
@@ -583,26 +586,67 @@ def get_indices():
         {"symbol": "^BSESN", "name": "SENSEX", "default_price": 74729.27, "default_change": 413.67, "default_pct": 0.56},
     ]
 
-    results = []
-    for item in index_targets:
+    def _fetch_target(item):
         q = _free_live_api_quote(item["symbol"])
         if q:
-            results.append({
+            return {
                 "symbol": item["symbol"],
                 "name": item["name"],
                 "price": q["price"],
                 "change": q["change"],
                 "change_percent": q["change_percent"],
-            })
-        else:
-            results.append({
-                "symbol": item["symbol"],
-                "name": item["name"],
-                "price": item["default_price"],
-                "change": item["default_change"],
-                "change_percent": item["default_pct"],
-            })
+            }
+        return {
+            "symbol": item["symbol"],
+            "name": item["name"],
+            "price": item["default_price"],
+            "change": item["default_change"],
+            "change_percent": item["default_pct"],
+        }
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        results = list(pool.map(_fetch_target, index_targets))
     return results
+
+
+HOT_DASHBOARD_ASSETS = [
+    {"symbol": "BTC-USD", "name": "Bitcoin", "type": "crypto", "market": "CCME"},
+    {"symbol": "ETH-USD", "name": "Ethereum", "type": "crypto", "market": "CCME"},
+    {"symbol": "AAPL", "name": "Apple Inc.", "type": "stock", "market": "USE"},
+    {"symbol": "MSFT", "name": "Microsoft", "type": "stock", "market": "USE"},
+    {"symbol": "RELIANCE.NS", "name": "Reliance Ind.", "type": "stock", "market": "ISE"},
+    {"symbol": "TCS.NS", "name": "Tata Consultancy", "type": "stock", "market": "ISE"},
+]
+
+
+def get_hot_assets():
+    """
+    Returns live quotes for popular tradeable assets on the dashboard.
+    Enables direct touch-to-trade for stocks and cryptocurrencies.
+    """
+    def _fetch_hot(item):
+        q = get_quote(item["symbol"])
+        price = q["price"] if q else None
+        change = q.get("change", 0.0) if q else 0.0
+        change_pct = q.get("change_percent", 0.0) if q else 0.0
+        return {
+            **item,
+            "price": price,
+            "change": change,
+            "change_percent": change_pct,
+            "currency_symbol": "₹" if item["market"] == "ISE" else "$",
+        }
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        results = list(pool.map(_fetch_hot, HOT_DASHBOARD_ASSETS))
+    return results
+
+
+def compute_checksum(data):
+    """Computes a 16-character SHA256 checksum for response verification."""
+    raw = json.dumps(data, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()[:16]
+
 
 
 def _custom_api_quote(symbol):

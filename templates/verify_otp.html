@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Email - TradeVerse</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+    <div class="topbar">
+        <div class="topbar-inner">
+            <div class="logo-wrap">
+                <a href="{{ url_for('dashboard') }}">
+                    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="TradeVerse Logo">
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="page-wrap">
+        <div class="auth-card">
+            <h1>Verify Your Email</h1>
+            <p class="subtitle">Enter the 6-digit verification code sent to <strong>{{ email }}</strong></p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('verify_otp') }}">
+                <div class="form-group">
+                    <label for="otp">6-Digit Verification Code</label>
+                    <input type="text" id="otp" name="otp" placeholder="123456" maxlength="6" pattern="\d{6}" inputmode="numeric" required autocomplete="one-time-code" autofocus style="font-size: 20px; letter-spacing: 6px; text-align: center; font-weight: 700;">
+                    <small class="form-hint">The code will expire in 10 minutes.</small>
+                </div>
+
+                <button type="submit" class="btn btn-navy">Verify & Complete Registration</button>
+            </form>
+
+            <div class="resend-row" style="text-align: center; margin-top: 15px; font-size: 14px;">
+                Didn't receive the code? <a href="{{ url_for('resend_otp') }}" style="color: var(--navy); font-weight: 700;">Resend OTP</a>
+            </div>
+
+            <div class="card-footer">
+                Entered the wrong email? <a href="{{ url_for('register') }}">Start over</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>

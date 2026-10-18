@@ -41,8 +41,25 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="phone">Phone Number (10 - 14 digits)</label>
-                    <input type="tel" id="phone" name="phone" placeholder="Enter 10 to 14 digit phone number" minlength="10" maxlength="14" required autocomplete="tel">
+                    <label for="phone">Mobile Number</label>
+                    <div class="phone-input-group">
+                        <select id="country_code" name="country_code" class="country-code-select" required>
+                            <option value="+91" selected>🇮🇳 +91 (India)</option>
+                            <option value="+1">🇺🇸 +1 (USA/Canada)</option>
+                            <option value="+44">🇬🇧 +44 (UK)</option>
+                            <option value="+971">🇦🇪 +971 (UAE)</option>
+                            <option value="+65">🇸🇬 +65 (Singapore)</option>
+                            <option value="+61">🇦🇺 +61 (Australia)</option>
+                            <option value="+49">🇩🇪 +49 (Germany)</option>
+                            <option value="+33">🇫🇷 +33 (France)</option>
+                            <option value="+81">🇯🇵 +81 (Japan)</option>
+                            <option value="+86">🇨🇳 +86 (China)</option>
+                            <option value="+7">🇷🇺 +7 (Russia)</option>
+                            <option value="+966">🇸🇦 +966 (Saudi Arabia)</option>
+                        </select>
+                        <input type="tel" id="phone" name="phone" placeholder="10 to 14 digit mobile number" minlength="10" maxlength="14" pattern="\d{10,14}" inputmode="numeric" required autocomplete="tel" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+                    </div>
+                    <small class="form-hint">Digits only, 10 to 14 numbers. No special characters or spaces.</small>
                 </div>
 
                 <div class="form-group">

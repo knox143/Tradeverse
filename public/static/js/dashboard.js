@@ -1,29 +1,53 @@
-// TradeVerse dashboard (landing page) logic
+// TradeVerse dashboard (landing page) logic with Checksum verification & Touch Trading
 
 const REFRESH_INTERVAL_MS = 60 * 1000; // 1 minute auto-refresh for real-time pricing
 const SEARCH_DEBOUNCE_MS = 300;
 
 let searchDebounceTimer = null;
 let searchRequestSeq = 0; // guards against a slow older request overwriting a newer one
+let currentBtcData = null;
 
+// Local Checksum cache to mitigate latency and avoid redundant DOM re-renders
+const checksumCache = {
+    btc: null,
+    indices: null,
+    hotAssets: null,
+};
+
+window._cachedPortfolio = null;
 
 function loadBtcHero() {
-    fetch("/api/btc")
-        .then((res) => res.json())
+    const headers = {};
+    if (checksumCache.btc) {
+        headers["If-None-Match"] = checksumCache.btc;
+    }
+
+    fetch("/api/btc", { headers: headers })
+        .then((res) => {
+            if (res.status === 304) {
+                return null; // Not modified, use cached data
+            }
+            const checksum = res.headers.get("X-Checksum") || res.headers.get("ETag");
+            if (checksum) checksumCache.btc = checksum;
+            return res.json();
+        })
         .then((data) => {
+            if (!data) return;
+            currentBtcData = data;
             const priceEl = document.getElementById("btcPrice");
             const changeEl = document.getElementById("btcChange");
             applyQuoteToElements(data, priceEl, changeEl, true);
         })
         .catch(() => {
-            document.getElementById("btcPrice").textContent = "Unavailable";
+            const priceEl = document.getElementById("btcPrice");
+            if (priceEl && !currentBtcData) priceEl.textContent = "Unavailable";
         });
 }
 
 function applyQuoteToElements(quote, priceEl, changeEl, isBtc) {
     if (!quote || quote.price === null || quote.price === undefined) {
-        priceEl.textContent = "Unavailable";
-        changeEl.textContent = "";
+        if (priceEl) priceEl.textContent = "Unavailable";
+        if (changeEl) changeEl.textContent = "";
         return;
     }
 
@@ -34,19 +58,22 @@ function applyQuoteToElements(quote, priceEl, changeEl, isBtc) {
         prefix = "₹";
     }
 
-    priceEl.textContent = prefix + Number(quote.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (priceEl) {
+        priceEl.textContent = prefix + Number(quote.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
 
-    if (quote.change !== null && quote.change !== undefined) {
-        const sign = quote.change >= 0 ? "+" : "";
-        changeEl.textContent = sign + Number(quote.change).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " (" + sign + Number(quote.change_percent).toFixed(2) + "%)";
-        changeEl.className = "idx-change " + (quote.change >= 0 ? "up" : "down");
-    } else {
-        changeEl.textContent = "";
+    if (changeEl) {
+        if (quote.change !== null && quote.change !== undefined) {
+            const sign = quote.change >= 0 ? "+" : "";
+            changeEl.textContent = sign + Number(quote.change).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " (" + sign + Number(quote.change_percent).toFixed(2) + "%)";
+            changeEl.className = "idx-change " + (quote.change >= 0 ? "up" : "down");
+        } else {
+            changeEl.textContent = "";
+        }
     }
 }
 
-// Maps the /api/indices response (S&P 500 / NIFTY 50 / SENSEX) onto the
-// index boxes already in the page.
+// Maps the /api/indices response (S&P 500 / NIFTY 50 / SENSEX) onto index boxes
 function loadIndices() {
     const boxIdByName = {
         "S&P 500": "idx-sp500",
@@ -54,11 +81,22 @@ function loadIndices() {
         "SENSEX": "idx-sensex",
     };
 
-    fetch("/api/indices")
-        .then((res) => res.json())
+    const headers = {};
+    if (checksumCache.indices) {
+        headers["If-None-Match"] = checksumCache.indices;
+    }
+
+    fetch("/api/indices", { headers: headers })
+        .then((res) => {
+            if (res.status === 304) return null;
+            const checksum = res.headers.get("X-Checksum") || res.headers.get("ETag");
+            if (checksum) checksumCache.indices = checksum;
+            return res.json();
+        })
         .then((data) => {
-            if (!Array.isArray(data)) return;
-            data.forEach(function (idx) {
+            if (!data) return;
+            const list = Array.isArray(data) ? data : (data.data || []);
+            list.forEach(function (idx) {
                 const boxId = boxIdByName[idx.name];
                 const box = boxId ? document.getElementById(boxId) : null;
                 if (!box) return;
@@ -71,11 +109,125 @@ function loadIndices() {
         .catch(() => {});
 }
 
+// ---------------------------------------------------------------------------
+// Touch Trading: Hot Assets on Dashboard
+// ---------------------------------------------------------------------------
+
+function loadHotAssets() {
+    const grid = document.getElementById("touchAssetsGrid");
+    if (!grid) return;
+
+    const headers = {};
+    if (checksumCache.hotAssets) {
+        headers["If-None-Match"] = checksumCache.hotAssets;
+    }
+
+    fetch("/api/hot-assets", { headers: headers })
+        .then((res) => {
+            if (res.status === 304) return null;
+            const checksum = res.headers.get("X-Checksum") || res.headers.get("ETag");
+            if (checksum) checksumCache.hotAssets = checksum;
+            return res.json();
+        })
+        .then((resp) => {
+            if (!resp) return;
+            const items = resp.data || (Array.isArray(resp) ? resp : []);
+            if (!items.length) {
+                grid.innerHTML = '<div class="tts-empty">No hot assets available currently.</div>';
+                return;
+            }
+
+            grid.innerHTML = items.map((asset) => {
+                const sym = asset.currency_symbol || (asset.market === "ISE" ? "₹" : "$");
+                const priceFormatted = asset.price !== null && asset.price !== undefined
+                    ? sym + Number(asset.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    : "Unavailable";
+                const isUp = (asset.change || 0) >= 0;
+                const sign = isUp ? "+" : "";
+                const changeFormatted = asset.change !== null && asset.change !== undefined
+                    ? `${sign}${Number(asset.change).toFixed(2)} (${sign}${Number(asset.change_percent).toFixed(2)}%)`
+                    : "--";
+
+                return `
+                    <div class="touch-card" data-symbol="${asset.symbol}">
+                        <div class="tc-top">
+                            <div>
+                                <div class="tc-symbol">${asset.symbol}</div>
+                                <div class="tc-name">${asset.name}</div>
+                            </div>
+                            <span class="badge badge-market badge-${(asset.market || 'USE').toLowerCase()}">${asset.market}</span>
+                        </div>
+                        <div class="tc-mid">
+                            <div class="tc-price">${priceFormatted}</div>
+                            <div class="tc-change ${isUp ? 'up' : 'down'}">${changeFormatted}</div>
+                        </div>
+                        <div class="tc-actions">
+                            <button type="button" class="btn-touch-action btn-touch-buy"
+                                onclick="handleDashboardTrade('buy', '${asset.symbol}', '${asset.type}', '${asset.market}', '${sym}', ${asset.price || 0})">
+                                Touch Buy
+                            </button>
+                            <button type="button" class="btn-touch-action btn-touch-sell"
+                                onclick="handleDashboardTrade('sell', '${asset.symbol}', '${asset.type}', '${asset.market}', '${sym}', ${asset.price || 0})">
+                                Touch Sell
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        })
+        .catch(() => {});
+}
+
+function handleDashboardTrade(action, symbol, assetType, market, currencySymbol, price) {
+    if (!window.TradeModal) {
+        alert("Trading interface is loading. Please try again in a moment.");
+        return;
+    }
+
+    const portfolio = window._cachedPortfolio || {};
+    const wallets = portfolio.wallet || {};
+    const holdings = portfolio.holdings || [];
+
+    if (action === "buy") {
+        const balance = wallets[market] !== undefined ? wallets[market] : 10000;
+        window.TradeModal.open({
+            action: "buy",
+            symbol: symbol,
+            assetType: assetType,
+            market: market,
+            currencySymbol: currencySymbol,
+            currentPrice: Number(price),
+            balance: balance,
+            onSuccess: function () {
+                loadDashboardPortfolioPreview();
+            }
+        });
+    } else {
+        // Find if user holds this symbol
+        const holding = holdings.find((h) => h.symbol === symbol || (h.symbol && h.symbol.toUpperCase() === symbol.toUpperCase()));
+        if (!holding || holding.quantity <= 0) {
+            alert(`You do not own any units of ${symbol} in your portfolio yet. Use "Touch Buy" to purchase units first!`);
+            return;
+        }
+
+        window.TradeModal.open({
+            action: "sell",
+            symbol: symbol,
+            assetType: assetType,
+            market: market,
+            currencySymbol: currencySymbol,
+            lotId: holding.lot_id,
+            currentPrice: Number(price),
+            maxQuantity: holding.quantity,
+            onSuccess: function () {
+                loadDashboardPortfolioPreview();
+            }
+        });
+    }
+}
 
 // ---------------------------------------------------------------------------
-// Live search - fires /api/search as the user types, debounced, and shows
-// a dropdown of matching stocks/crypto under the search bar. Clicking a
-// result takes the user to that asset's detail page.
+// Live search
 // ---------------------------------------------------------------------------
 
 function renderSearchResults(results, query) {
@@ -128,7 +280,7 @@ function runSearch(query) {
     fetch("/api/search?q=" + encodeURIComponent(query))
         .then(function (res) { return res.json(); })
         .then(function (data) {
-            if (seq !== searchRequestSeq) return; // a newer keystroke already fired, drop this stale response
+            if (seq !== searchRequestSeq) return;
             renderSearchResults(data, query);
         })
         .catch(function () {
@@ -142,6 +294,7 @@ function loadDashboardPortfolioPreview() {
         .then(function (res) { return res.json(); })
         .then(function (data) {
             if (data.error) return;
+            window._cachedPortfolio = data;
             const stats = data.stats || {};
             const wallets = data.wallet || {};
 
@@ -204,6 +357,22 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
+    // Bitcoin Hero Touch Trading buttons
+    const btcBuyBtn = document.getElementById("btcTouchBuy");
+    const btcSellBtn = document.getElementById("btcTouchSell");
+    if (btcBuyBtn) {
+        btcBuyBtn.addEventListener("click", function () {
+            const price = currentBtcData && currentBtcData.price ? currentBtcData.price : 95000;
+            handleDashboardTrade("buy", "BTC-USD", "crypto", "CCME", "$", price);
+        });
+    }
+    if (btcSellBtn) {
+        btcSellBtn.addEventListener("click", function () {
+            const price = currentBtcData && currentBtcData.price ? currentBtcData.price : 95000;
+            handleDashboardTrade("sell", "BTC-USD", "crypto", "CCME", "$", price);
+        });
+    }
+
     // Live search wiring
     const searchInput = document.getElementById("searchInput");
     const searchBtn = document.getElementById("searchBtn");
@@ -246,12 +415,14 @@ document.addEventListener("DOMContentLoaded", function () {
     // Initial load
     loadBtcHero();
     loadIndices();
+    loadHotAssets();
     loadDashboardPortfolioPreview();
 
-    // Auto-refresh every 10 minutes to line up with the backend price cache
+    // Auto-refresh every 1 minute for live prices
     setInterval(function () {
         loadBtcHero();
         loadIndices();
+        loadHotAssets();
         loadDashboardPortfolioPreview();
     }, REFRESH_INTERVAL_MS);
 });
