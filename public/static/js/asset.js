@@ -296,7 +296,7 @@ function openBuyModal() {
                 currencySymbol: currencySymbol,
                 balance: Number(data.wallet || 0),
                 onSuccess: function (result) {
-                    alert("Buy completed successfully! Bought " + ASSET_SYMBOL + ".\nNew " + market + " wallet balance: " + currencySymbol + Number(result.wallet).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+                    alert("Buy completed successfully! " + ASSET_SYMBOL + ".\nNew " + market + " wallet balance: " + currencySymbol + Number(result.wallet).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
                 }
             });
         })

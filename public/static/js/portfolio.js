@@ -373,7 +373,7 @@ function submitQuickBuy() {
         }
 
         closeQuickBuyModal();
-        alert('Order executed successfully! Bought ' + qty + ' of ' + quickBuyState.symbol + ' for ' + formatMoney(data.total_amount, quickBuyState.currencySymbol));
+        alert('Order executed successfully! ' + qty + ' of ' + quickBuyState.symbol + ' for ' + formatMoney(data.total_amount, quickBuyState.currencySymbol));
         loadPortfolioData();
     })
     .catch(() => {
