@@ -164,11 +164,11 @@ function loadHotAssets() {
                         <div class="tc-actions">
                             <button type="button" class="btn-touch-action btn-touch-buy"
                                 onclick="handleDashboardTrade('buy', '${asset.symbol}', '${asset.type}', '${asset.market}', '${sym}', ${asset.price || 0})">
-                                Touch Buy
+                                Buy
                             </button>
                             <button type="button" class="btn-touch-action btn-touch-sell"
                                 onclick="handleDashboardTrade('sell', '${asset.symbol}', '${asset.type}', '${asset.market}', '${sym}', ${asset.price || 0})">
-                                Touch Sell
+                                Sell
                             </button>
                         </div>
                     </div>
@@ -206,7 +206,7 @@ function handleDashboardTrade(action, symbol, assetType, market, currencySymbol,
         // Find if user holds this symbol
         const holding = holdings.find((h) => h.symbol === symbol || (h.symbol && h.symbol.toUpperCase() === symbol.toUpperCase()));
         if (!holding || holding.quantity <= 0) {
-            alert(`You do not own any units of ${symbol} in your portfolio yet. Use "Touch Buy" to purchase units first!`);
+            alert(`You do not own any units of ${symbol} in your portfolio yet. Use "Buy" to purchase units first!`);
             return;
         }
 
