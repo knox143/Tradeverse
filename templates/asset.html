@@ -64,34 +64,20 @@
             </div>
         </div>
 
-        <!-- Chart Mode Switcher & Timeframe Selector -->
+        <!-- Chart Mode Header -->
         <div class="chart-header-bar">
             <div class="chart-view-toggle">
-                <button type="button" class="btn-chart-mode active" id="modeTradingViewWidget" data-mode="tv-widget">
+                <button type="button" class="btn-chart-mode active" id="modeTradingViewWidget" data-mode="tv-widget" style="cursor: default;">
                     <span>📊 TradingView Live Market</span>
                 </button>
-                <button type="button" class="btn-chart-mode" id="modeCustomApi" data-mode="custom-api">
-                    <span>⚡ Custom API Chart (TradingView Engine)</span>
-                </button>
-            </div>
-            <div class="timeframe-buttons" id="customTimeframes" style="display: none;">
-                <button type="button" class="tf-btn active" data-range="24H">24H</button>
-                <button type="button" class="tf-btn" data-range="1W">1W</button>
-                <button type="button" class="tf-btn" data-range="1M">1M</button>
-                <button type="button" class="tf-btn" data-range="1Y">1Y</button>
             </div>
         </div>
 
         <!-- Chart Containers -->
         <div class="chart-panel" style="padding: 0; overflow: hidden; height: 520px; position: relative;">
-            <!-- 1. TradingView Advanced Real-Time Widget -->
+            <!-- TradingView Advanced Real-Time Widget -->
             <div id="tradingview_widget_wrap" style="height: 100%; width: 100%;">
                 <div id="tradingview_chart" style="height: 100%; width: 100%;"></div>
-            </div>
-
-            <!-- 2. Custom API Chart (Powered by Official TradingView Lightweight Charts) -->
-            <div id="custom_api_chart_wrap" style="height: 100%; width: 100%; display: none; background: #ffffff;">
-                <div id="custom_tradingview_container" style="height: 100%; width: 100%;"></div>
             </div>
         </div>
 
