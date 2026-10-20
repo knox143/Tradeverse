@@ -138,8 +138,8 @@
     <div class="admin-wrap">
         <div class="admin-header">
             <div class="admin-title">
-                <h1>Registered Users Database</h1>
-                <p>Complete directory of all TradeVerse registered user accounts and login IDs.</p>
+                <h1>Users Database</h1>
+                <p>Complete directory of all TradeVerse user accounts and login IDs.</p>
             </div>
             <div>
                 <a href="{{ url_for('api_admin_users') }}" target="_blank" class="btn btn-navy" style="display:inline-block; padding: 8px 14px; font-size: 13px; text-decoration:none;">View Raw JSON API</a>
@@ -149,7 +149,7 @@
         <div class="admin-stats">
             <div class="admin-stat-card">
                 <div class="val">{{ users|length }}</div>
-                <div class="lbl">Total Registered Users</div>
+                <div class="lbl">Total Users</div>
             </div>
             <div class="admin-stat-card">
                 <div class="val">{{ users|selectattr("has_active_session")|list|length }}</div>
@@ -188,7 +188,7 @@
                             {% if u.has_active_session %}
                                 <span class="session-badge active">● Active Session</span>
                             {% else %}
-                                <span class="session-badge idle">○ Idle / Logged Out</span>
+                                <span class="session-badge idle">○ Logged Out</span>
                             {% endif %}
                         </td>
                         <td>

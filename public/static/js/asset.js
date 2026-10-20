@@ -54,12 +54,24 @@ let activeMode = "tv-widget"; // 'tv-widget' | 'custom-api'
 // ---------------------------------------------------------------------------
 function initTradingViewWidget() {
     const tvSymbol = getTradingViewSymbol(ASSET_SYMBOL, ASSET_TYPE);
+    let userTz = "Asia/Kolkata";
+    try {
+        const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (detected === "Asia/Calcutta" || !detected) {
+            userTz = "Asia/Kolkata";
+        } else {
+            userTz = detected;
+        }
+    } catch (e) {
+        userTz = "Asia/Kolkata";
+    }
+
     if (typeof TradingView !== "undefined") {
         new TradingView.widget({
             "autosize": true,
             "symbol": tvSymbol,
             "interval": "D",
-            "timezone": "Etc/UTC",
+            "timezone": userTz,
             "theme": "light",
             "style": "1",
             "locale": "en",
