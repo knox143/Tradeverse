@@ -160,10 +160,7 @@ function initCustomTradingViewChart(rangeKey) {
 }
 
 function loadCustomChartData(rangeKey) {
-    const customApiUrl = window.TRADEVERSE_CUSTOM_CHART_API;
-    const fetchUrl = customApiUrl
-        ? customApiUrl + (customApiUrl.includes("?") ? "&" : "?") + "symbol=" + encodeURIComponent(ASSET_SYMBOL) + "&range=" + rangeKey
-        : "/api/asset/" + ASSET_TYPE + "/" + encodeURIComponent(ASSET_SYMBOL) + "/chart?range=" + rangeKey;
+    const fetchUrl = "/api/asset/" + ASSET_TYPE + "/" + encodeURIComponent(ASSET_SYMBOL) + "/chart?range=" + rangeKey;
 
     fetch(fetchUrl)
         .then(res => res.json())

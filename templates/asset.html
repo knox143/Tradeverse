@@ -116,10 +116,6 @@
     <script>
         window.TRADEVERSE_ASSET_SYMBOL = "{{ symbol }}";
         window.TRADEVERSE_ASSET_TYPE = "{{ asset_type }}";
-        // User Custom API Configuration:
-        // Set your custom API URL here if you want the browser to query your API directly.
-        // If left empty, it uses TradeVerse backend proxy (/api/asset/.../chart) which supports CUSTOM_PRICE_API_URL and CUSTOM_CHART_API_URL.
-        window.TRADEVERSE_CUSTOM_CHART_API = "";
     </script>
     <script src="{{ url_for('static', filename='js/asset.js') }}"></script>
 </body>

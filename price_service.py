@@ -35,10 +35,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 COINGECKO_API_KEY = os.getenv("COINGECKO_API_KEY", "").strip()
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "").strip() or os.getenv("TWELVEDATA_API_KEY", "").strip()
 TWELVEDATA_API_KEY = os.getenv("TWELVEDATA_API_KEY", "").strip()
-CUSTOM_PRICE_API_URL = os.getenv("CUSTOM_PRICE_API_URL", "").strip()
-CUSTOM_PRICE_API_KEY = os.getenv("CUSTOM_PRICE_API_KEY", "").strip()
-CUSTOM_CHART_API_URL = os.getenv("CUSTOM_CHART_API_URL", "").strip()
 
 def _safe_int_env(key: str, default: int) -> int:
     val = os.getenv(key, "").strip()
@@ -53,6 +51,7 @@ CACHE_TTL_SECONDS = _safe_int_env("PRICE_CACHE_TTL_SECONDS", 60)
 REQUEST_TIMEOUT = _safe_int_env("REQUEST_TIMEOUT_SECONDS", 5)
 SEARCH_CACHE_TTL_SECONDS = 30
 
+FINNHUB_BASE_URL = "https://finnhub.io/api/v1"
 TWELVEDATA_BASE_URL = "https://api.twelvedata.com"
 COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3"
 
@@ -163,6 +162,70 @@ def _get_fallback_quote(symbol):
         "change": change,
         "change_percent": pct,
     }
+
+
+def _finnhub_quote(symbol):
+    """Real-time US stock quote from Finnhub."""
+    if not FINNHUB_API_KEY:
+        return None
+    try:
+        clean_symbol = symbol.strip().upper()
+        resp = requests.get(
+            f"{FINNHUB_BASE_URL}/quote",
+            params={"symbol": clean_symbol, "token": FINNHUB_API_KEY},
+            timeout=REQUEST_TIMEOUT,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            current_price = data.get("c")
+            if current_price and float(current_price) > 0:
+                p_float = round(float(current_price), 4)
+                change = round(float(data.get("d", 0.0)), 4)
+                pct = round(float(data.get("dp", 0.0)), 2)
+                prev_close = round(float(data.get("pc", p_float - change)), 4)
+                name = FALLBACK_STOCKS.get(clean_symbol, {}).get("name") or clean_symbol
+                return {
+                    "symbol": clean_symbol,
+                    "name": name,
+                    "price": p_float,
+                    "previous_close": prev_close,
+                    "change": change,
+                    "change_percent": pct,
+                }
+    except Exception as e:
+        print(f"[price_service] Finnhub quote error for {symbol}: {e}")
+    return None
+
+
+def _finnhub_search(query, limit=8):
+    """Live search for US stocks via Finnhub /search endpoint."""
+    if not FINNHUB_API_KEY:
+        return []
+    try:
+        resp = requests.get(
+            f"{FINNHUB_BASE_URL}/search",
+            params={"q": query, "token": FINNHUB_API_KEY},
+            timeout=REQUEST_TIMEOUT,
+        )
+        if resp.status_code == 200:
+            raw_list = resp.json().get("result", [])
+            results = []
+            for item in raw_list:
+                sym = item.get("symbol", "").upper()
+                if not sym or "." in sym:
+                    continue
+                results.append({
+                    "symbol": sym,
+                    "name": item.get("description") or sym,
+                    "type": "stock",
+                    "exchange": "US",
+                })
+                if len(results) >= limit:
+                    break
+            return results
+    except Exception as e:
+        print(f"[price_service] Finnhub search error for {query}: {e}")
+    return []
 
 
 def _twelvedata_quote(symbol):
@@ -494,44 +557,6 @@ def _coingecko_market_chart_range(coin_id, from_ts, to_ts, interval=None):
         return None
 
 
-# ==============================================================================================
-# 🌟 CUSTOM API SECTION (AAP APNA API YAHAN USE YA DROP KAR SAKTE HAIN) 🌟
-# ==============================================================================================
-# ABHI KE LIYE: Humne neeche 100% FREE live market API configure kar diya hai jo
-# Indian Stock Exchange (RELIANCE.NS, TCS.NS), US Stock Exchange (AAPL, MSFT),
-# aur Crypto Currency Market Exchange (BTC-USD, ETH-USD) ke live real prices lata hai.
-#
-# AGAR AAPKO APNA KHUD KA CUSTOM API LAGANA HAI, TOH 2 AASAN TAREEQE HAIN:
-#
-# --- TAREEQA 1: BINA CODE CHANGE KIYE (.env ya Vercel Environment Variables se) ---
-# 1. Apni .env file ya Vercel dashboard Settings -> Environment Variables me ye add karein:
-#      CUSTOM_PRICE_API_URL = https://your-api.com/v1/quote
-#      CUSTOM_PRICE_API_KEY = your_optional_secret_key
-#      CUSTOM_CHART_API_URL = https://your-api.com/v1/chart
-# 2. TradeVerse automatically pehle aapke API ko call karega!
-#
-# --- TAREEQA 2: DIRECT CODE KO CHANGE / REMOVE KARKE APNA API DROP KARNA ---
-# 1. Agar aap code me hi hardcode karna chahte hain:
-#    Neeche diye gaye `_user_direct_api_quote(symbol)` function ke andar apna URL aur response map karein.
-# ==============================================================================================
-
-def _user_direct_api_quote(symbol):
-    """
-    [USER DROP-IN HOOK]: Agar aap direct Python me apna API dalna chahte hain,
-    toh is function ke andar apna API URL aur fields replace karein:
-    """
-    # EXAMPLE:
-    # url = f"https://my-custom-api.com/stocks/{symbol}"
-    # res = requests.get(url, headers={"Authorization": "Bearer YOUR_KEY"}, timeout=5).json()
-    # return {
-    #     "symbol": symbol,
-    #     "price": float(res["current_price"]),
-    #     "change": float(res.get("change", 0.0)),
-    #     "change_percent": float(res.get("change_percent", 0.0)),
-    # }
-    return None
-
-
 def _free_live_api_quote(symbol):
     """100% FREE real-time price lookup (No API keys required) sourced from Yahoo Finance."""
     try:
@@ -649,61 +674,6 @@ def compute_checksum(data):
 
 
 
-def _custom_api_quote(symbol):
-    """
-    Custom Price API Resolver:
-    1. Direct code drop-in hook (_user_direct_api_quote)
-    2. Configured custom API URL (CUSTOM_PRICE_API_URL)
-    3. Built-in free live market API (_free_live_api_quote)
-    """
-    # 1. Check direct user code drop-in
-    user_quote = _user_direct_api_quote(symbol)
-    if user_quote and isinstance(user_quote, dict):
-        return user_quote
-
-    # 2. Check configured custom URL from .env / Vercel
-    if CUSTOM_PRICE_API_URL:
-        try:
-            headers = {}
-            if CUSTOM_PRICE_API_KEY:
-                headers["Authorization"] = f"Bearer {CUSTOM_PRICE_API_KEY}"
-                headers["x-api-key"] = CUSTOM_PRICE_API_KEY
-            params = {"symbol": symbol}
-            if CUSTOM_PRICE_API_KEY:
-                params["apikey"] = CUSTOM_PRICE_API_KEY
-
-            resp = requests.get(CUSTOM_PRICE_API_URL, params=params, headers=headers, timeout=REQUEST_TIMEOUT)
-            if resp.status_code == 200:
-                payload = resp.json()
-                if isinstance(payload, dict):
-                    inner = payload.get("data", payload) if isinstance(payload.get("data"), dict) else payload
-                    price = inner.get("price") or inner.get("close") or inner.get("last_price") or inner.get("rate") or inner.get("value")
-                    if price is not None:
-                        try:
-                            p_float = float(price)
-                            c_float = float(inner.get("change")) if inner.get("change") is not None else 0.0
-                            cp_float = float(inner.get("change_percent")) if inner.get("change_percent") is not None else round((c_float / p_float) * 100, 2)
-                            return {
-                                "symbol": symbol,
-                                "name": inner.get("name") or symbol,
-                                "price": round(p_float, 4),
-                                "previous_close": round(p_float - c_float, 4),
-                                "change": round(c_float, 4),
-                                "change_percent": round(cp_float, 2),
-                            }
-                        except (ValueError, TypeError):
-                            pass
-        except Exception as e:
-            print(f"[price_service] Custom API lookup failed for {symbol}: {e}")
-
-    # 3. Use 100% free live market quote
-    free_quote = _free_live_api_quote(symbol)
-    if free_quote:
-        return free_quote
-
-    return None
-
-
 # ---------------------------------------------------------------------------
 # Public API - quotes (used by app.py / portfolio_db.py, signatures unchanged)
 # ---------------------------------------------------------------------------
@@ -711,8 +681,11 @@ def _custom_api_quote(symbol):
 def get_quote(symbol):
     """
     Returns a dict with symbol, name, price, previous_close, change and
-    change_percent for `symbol`. Prioritizes real-time live pricing from
-    Yahoo Finance (https://query1.finance.yahoo.com/v8/finance/chart/).
+    change_percent for `symbol`.
+    Prioritizes real-time live quotes:
+      - Crypto: CoinGecko (using user's CoinGecko API key)
+      - US Stocks: Finnhub API (using user's Finnhub API key)
+      - Indian Stocks (.NS / .BO) & Indices: Live Yahoo / NSE
     Cached for `PRICE_CACHE_TTL_SECONDS`.
     """
     symbol_key = symbol.strip().upper()
@@ -720,30 +693,27 @@ def get_quote(symbol):
     if cached and (_now() - cached["ts"] < CACHE_TTL_SECONDS):
         return cached["data"]
 
-    # 1. Check custom user API if configured
-    if CUSTOM_PRICE_API_URL:
-        custom_data = _custom_api_quote(symbol_key)
-        if custom_data is not None:
-            _quote_cache[symbol_key] = {"data": custom_data, "ts": _now()}
-            return custom_data
-
-    # 2. Priority: 100% free real-time live market quote from Yahoo Finance
-    live_yahoo = _free_live_api_quote(symbol_key)
-    if live_yahoo is not None:
-        _quote_cache[symbol_key] = {"data": live_yahoo, "ts": _now()}
-        return live_yahoo
-
-    # 3. Fallback providers (CoinGecko for crypto, TwelveData / fallback for stocks)
+    # 1. Crypto: CoinGecko
     if _is_crypto_symbol(symbol_key):
         data = _coingecko_quote(symbol_key)
+        if data is None:
+            data = _free_live_api_quote(symbol_key)
     else:
-        data = _twelvedata_quote(symbol_key)
+        # 2. Indian Stocks (.NS / .BO) & Indices: Live Yahoo / NSE
+        if symbol_key.endswith(".NS") or symbol_key.endswith(".BO") or symbol_key.startswith("^") or symbol_key in INDEX_SYMBOLS.values():
+            data = _free_live_api_quote(symbol_key)
+        else:
+            # 3. US Stocks: Finnhub -> TwelveData -> Live Yahoo
+            data = _finnhub_quote(symbol_key)
+            if data is None:
+                data = _twelvedata_quote(symbol_key)
+            if data is None:
+                data = _free_live_api_quote(symbol_key)
 
     if data is None:
-        # fetch failed - fall back to whatever we had before, even if stale
         if cached:
             return cached["data"]
-        return None
+        return _get_fallback_quote(symbol_key)
 
     _quote_cache[symbol_key] = {"data": data, "ts": _now()}
     return data
@@ -776,10 +746,7 @@ def get_index_quote(label):
 def search_symbols(query, limit=8):
     """
     Live "search as you type" for the dashboard search bar. Searches both
-    US stocks (Twelve Data) and crypto (CoinGecko) - stock matches are
-    always listed before crypto matches, regardless of how many of each
-    come back, since the concatenation order below is preserved by the
-    slice at the end.
+    US stocks (Finnhub / Twelve Data) and crypto (CoinGecko).
     Cached per-query for SEARCH_CACHE_TTL_SECONDS to keep fast typing cheap.
     """
     query = (query or "").strip()
@@ -791,10 +758,14 @@ def search_symbols(query, limit=8):
     if cached and (_now() - cached["ts"] < SEARCH_CACHE_TTL_SECONDS):
         return cached["data"]
 
-    # Search both providers concurrently so a slow external API does not
-    # serially consume the whole Vercel function duration.
+    def _get_stocks():
+        matches = _finnhub_search(query, 6)
+        if not matches:
+            matches = _twelvedata_search(query, 6)
+        return matches
+
     with ThreadPoolExecutor(max_workers=2) as executor:
-        stock_future = executor.submit(_twelvedata_search, query, 6)
+        stock_future = executor.submit(_get_stocks)
         crypto_future = executor.submit(_coingecko_search, query, 6)
         stock_results = stock_future.result()
         crypto_results = crypto_future.result()
@@ -833,14 +804,7 @@ def get_chart_data(symbol, asset_type, range_key):
     if cached and (_now() - cached["ts"] < CACHE_TTL_SECONDS):
         return cached["data"]
 
-    # 1. Check custom user API for chart/candlestick data first if configured
-    if CUSTOM_CHART_API_URL or CUSTOM_PRICE_API_URL:
-        custom_chart = _custom_api_chart(symbol, asset_type, range_key)
-        if custom_chart and isinstance(custom_chart, dict) and custom_chart.get("candles"):
-            _chart_cache[cache_key] = {"data": custom_chart, "ts": _now()}
-            return custom_chart
-
-    # 2. Priority: 100% Free Live Candlestick & Market Chart from Yahoo Finance
+    # Priority: Free Live Candlestick & Market Chart from Yahoo Finance / CoinGecko
     free_chart = _free_live_api_chart(symbol, range_key)
     if free_chart and isinstance(free_chart, dict) and free_chart.get("candles"):
         _chart_cache[cache_key] = {"data": free_chart, "ts": _now()}
@@ -1025,35 +989,4 @@ def _free_live_api_chart(symbol, range_key):
     return None
 
 
-def _custom_api_chart(symbol, asset_type, range_key):
-    """
-    Hook for user-provided custom chart/candlestick API.
-    If CUSTOM_CHART_API_URL or CUSTOM_PRICE_API_URL is configured, queries it first.
-    If not configured, uses the free live market candlestick API.
-    """
-    url = CUSTOM_CHART_API_URL or (CUSTOM_PRICE_API_URL.rstrip("/") + "/chart" if CUSTOM_PRICE_API_URL else "")
-    if url:
-        try:
-            headers = {}
-            if CUSTOM_PRICE_API_KEY:
-                headers["Authorization"] = f"Bearer {CUSTOM_PRICE_API_KEY}"
-                headers["x-api-key"] = CUSTOM_PRICE_API_KEY
-            params = {"symbol": symbol, "type": asset_type, "range": range_key}
-            if CUSTOM_PRICE_API_KEY:
-                params["apikey"] = CUSTOM_PRICE_API_KEY
-            resp = requests.get(url, params=params, headers=headers, timeout=REQUEST_TIMEOUT)
-            if resp.status_code == 200:
-                payload = resp.json()
-                if isinstance(payload, dict):
-                    return payload
-                elif isinstance(payload, list) and len(payload) > 0:
-                    return {"symbol": symbol, "candles": payload}
-        except Exception as e:
-            print(f"[price_service] Custom chart API lookup failed for {symbol}: {e}")
 
-    # Fallback to 100% free live candlestick provider
-    free_chart = _free_live_api_chart(symbol, range_key)
-    if free_chart:
-        return free_chart
-
-    return None
