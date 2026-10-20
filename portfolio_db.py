@@ -69,6 +69,14 @@ def _empty_portfolio_doc(user_id, username, wallet=None, holdings=None, transact
     }
 
 
+def _sync_portfolio_to_cloud():
+    try:
+        import cloud_sync
+        cloud_sync.upload_to_cloud(["tradeverse.json"])
+    except Exception:
+        pass
+
+
 def get_portfolio_doc(user_id):
     return portfolios.find_one({"user_id": user_id})
 
@@ -79,6 +87,7 @@ def create_default_portfolio(user_id, username):
         return
     doc = _empty_portfolio_doc(user_id, username)
     portfolios.insert_one(doc)
+    _sync_portfolio_to_cloud()
 
 
 def _holding(name, bought_price, quantity, bought_days_ago=0):
@@ -375,6 +384,7 @@ def buy_asset(user_id, market, symbol, quantity, current_price=None):
         {"user_id": user_id},
         {"$set": {field: holdings, "wallet": wallet}},
     )
+    _sync_portfolio_to_cloud()
 
     # Record buy transaction in audit trail
     tx = record_transaction(
@@ -464,6 +474,7 @@ def sell_lot(user_id, market, lot_id, quantity, current_price=None):
         {"user_id": user_id},
         {"$set": {field: holdings, "wallet": wallet}},
     )
+    _sync_portfolio_to_cloud()
 
     # Record sell transaction in audit trail
     tx = record_transaction(

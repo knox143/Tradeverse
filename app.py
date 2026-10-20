@@ -314,6 +314,14 @@ def verify_otp():
             conn.close()
 
             portfolio_db.create_default_portfolio(new_user_id, pending["username"])
+
+            # Persist registered user and portfolio to Vercel Blob cloud storage
+            try:
+                import cloud_sync
+                cloud_sync.upload_to_cloud(["tradeverse.db", "tradeverse.json"])
+            except Exception as e:
+                app.logger.warning(f"Cloud sync upload error: {e}")
+
             session.pop("pending_reg", None)
             flash("Email verified successfully! Your account has been created. Please log in.", "success")
             return redirect(url_for("login"))
@@ -388,6 +396,26 @@ def login():
             """,
             (identifier, identifier, phone_digits, f"%{phone_digits}"),
         ).fetchone()
+
+        # If user is not found locally, try restoring from Vercel Blob in case account was created on another instance
+        if not user:
+            try:
+                import cloud_sync
+                if cloud_sync.is_cloud_enabled():
+                    if cloud_sync.download_from_cloud(force=True):
+                        conn.close()
+                        conn = get_db_connection()
+                        user = conn.execute(
+                            """
+                            SELECT * FROM users
+                            WHERE LOWER(username) = LOWER(?)
+                               OR phone = ?
+                               OR (LENGTH(?) >= 10 AND phone LIKE ?)
+                            """,
+                            (identifier, identifier, phone_digits, f"%{phone_digits}"),
+                        ).fetchone()
+            except Exception as e:
+                app.logger.warning(f"Cloud sync check error during login: {e}")
 
         if user and check_password_hash(user["password"], password):
             clear_login_failure(ip)
@@ -642,6 +670,12 @@ def admin_users():
         flash("Access denied. Admin privileges required.", "error")
         return redirect(url_for("dashboard"))
 
+    try:
+        import cloud_sync
+        cloud_sync.download_from_cloud()
+    except Exception:
+        pass
+
     conn = get_db_connection()
     users = conn.execute(
         "SELECT id, username, email, phone, session_token FROM users ORDER BY id ASC"
@@ -667,6 +701,12 @@ def admin_users():
 def api_admin_users():
     if session.get("username") != "admin":
         return jsonify({"error": "unauthorized", "message": "Admin privileges required"}), 403
+
+    try:
+        import cloud_sync
+        cloud_sync.download_from_cloud()
+    except Exception:
+        pass
 
     conn = get_db_connection()
     users = conn.execute(

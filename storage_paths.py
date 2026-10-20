@@ -67,4 +67,11 @@ def prepare_storage() -> tuple[Path, Path]:
     if source_json.exists():
         _copy_seed_file(source_json, runtime_json)
 
+    # Automatically restore the latest persistent database from Vercel Blob cloud storage if available
+    try:
+        from cloud_sync import download_from_cloud
+        download_from_cloud()
+    except Exception as e:
+        print(f"[STORAGE] Cloud sync download skip: {e}")
+
     return runtime_db, runtime_tinydb

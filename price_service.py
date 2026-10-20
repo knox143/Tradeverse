@@ -49,9 +49,9 @@ def _safe_int_env(key: str, default: int) -> int:
     except (ValueError, TypeError):
         return default
 
-CACHE_TTL_SECONDS = _safe_int_env("PRICE_CACHE_TTL_SECONDS", 600)
+CACHE_TTL_SECONDS = _safe_int_env("PRICE_CACHE_TTL_SECONDS", 60)
 REQUEST_TIMEOUT = _safe_int_env("REQUEST_TIMEOUT_SECONDS", 5)
-SEARCH_CACHE_TTL_SECONDS = 60
+SEARCH_CACHE_TTL_SECONDS = 30
 
 TWELVEDATA_BASE_URL = "https://api.twelvedata.com"
 COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3"
