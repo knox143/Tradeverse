@@ -425,6 +425,12 @@ def login():
             conn.commit()
             conn.close()
 
+            # Ensure portfolio document exists & is synchronized for this user
+            try:
+                portfolio_db.ensure_portfolio(user["id"], user["username"])
+            except Exception as e:
+                app.logger.warning(f"Error ensuring portfolio on login: {e}")
+
             session.clear()
             session["username"] = user["username"]
             session["user_id"] = user["id"]

@@ -78,14 +78,74 @@ def _sync_portfolio_to_cloud():
 
 
 def get_portfolio_doc(user_id):
-    return portfolios.find_one({"user_id": user_id})
+    if user_id is None:
+        return None
+    try:
+        uid = int(user_id)
+    except (ValueError, TypeError):
+        uid = user_id
+
+    doc = portfolios.find_one({"user_id": uid})
+    if not doc and isinstance(uid, int):
+        doc = portfolios.find_one({"user_id": str(uid)})
+
+    # If not found in local memory/file, check cloud storage
+    if not doc:
+        try:
+            import cloud_sync
+            if cloud_sync.is_cloud_enabled():
+                if cloud_sync.download_from_cloud(force=True):
+                    doc = portfolios.find_one({"user_id": uid})
+                    if not doc and isinstance(uid, int):
+                        doc = portfolios.find_one({"user_id": str(uid)})
+        except Exception:
+            pass
+
+    return doc
+
+
+def ensure_portfolio(user_id, username=None):
+    """Guarantees a portfolio document exists for the user. Auto-provisions default wallet if missing."""
+    doc = get_portfolio_doc(user_id)
+    if doc:
+        return doc
+
+    try:
+        uid = int(user_id)
+    except (ValueError, TypeError):
+        uid = user_id
+
+    if not username:
+        try:
+            import sqlite3
+            from storage_paths import RUNTIME_DIR
+            conn = sqlite3.connect(RUNTIME_DIR / "tradeverse.db")
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT username FROM users WHERE id = ?", (uid,)).fetchone()
+            conn.close()
+            if row:
+                username = row["username"]
+        except Exception:
+            pass
+
+    username = username or f"user_{uid}"
+    create_default_portfolio(uid, username)
+    return get_portfolio_doc(uid)
 
 
 def create_default_portfolio(user_id, username):
     """Called whenever a brand new user registers. All portfolios start empty."""
-    if get_portfolio_doc(user_id):
+    try:
+        uid = int(user_id)
+    except (ValueError, TypeError):
+        uid = user_id
+
+    existing = portfolios.find_one({"user_id": uid})
+    if not existing and isinstance(uid, int):
+        existing = portfolios.find_one({"user_id": str(uid)})
+    if existing:
         return
-    doc = _empty_portfolio_doc(user_id, username)
+    doc = _empty_portfolio_doc(uid, username)
     portfolios.insert_one(doc)
     _sync_portfolio_to_cloud()
 
@@ -233,7 +293,7 @@ def _ensure_lot_ids(user_id, market, doc=None):
     if market not in MARKETS:
         raise ValueError("Unknown market: " + market)
     if doc is None:
-        doc = get_portfolio_doc(user_id)
+        doc = ensure_portfolio(user_id)
     if not doc:
         return None
 
@@ -260,7 +320,7 @@ def _ensure_lot_ids(user_id, market, doc=None):
 def _ensure_transactions(user_id, doc=None):
     """Ensure existing user docs have initial transactions seeded if they have holdings."""
     if doc is None:
-        doc = get_portfolio_doc(user_id)
+        doc = ensure_portfolio(user_id)
     if not doc:
         return None
     txs = doc.get("transactions")
@@ -295,7 +355,7 @@ def _ensure_transactions(user_id, doc=None):
 
 
 def record_transaction(user_id, tx_type, symbol, market, quantity, price, total_amount, currency=None, profit_loss=None, lot_id=None):
-    doc = get_portfolio_doc(user_id)
+    doc = ensure_portfolio(user_id)
     if not doc:
         return None
     market = market.upper()
@@ -350,11 +410,14 @@ def buy_asset(user_id, market, symbol, quantity, current_price=None):
     price = _money(live_price)
     total = round(price * quantity, 2)
 
-    doc = get_portfolio_doc(user_id)
+    doc = ensure_portfolio(user_id)
     if not doc:
-        raise ValueError("Portfolio not found.")
+        raise ValueError("Could not access or initialize your portfolio. Please refresh and try again.")
 
     wallet = dict(doc.get("wallet", {}))
+    if market not in wallet or wallet[market] is None:
+        wallet[market] = DEFAULT_WALLET.get(market, 10000.0)
+
     balance = round(float(wallet.get(market, 0)), 2)
     if total > balance + 1e-9:
         currency_sym = "₹" if market == "ISE" else "$"
@@ -513,7 +576,7 @@ def get_market_snapshot(user_id, market):
     if market not in MARKETS:
         raise ValueError("Unknown market: " + market)
 
-    doc = get_portfolio_doc(user_id)
+    doc = ensure_portfolio(user_id)
     if not doc:
         return {"wallet": 0, "currency": CURRENCY_BY_MARKET[market], "holdings": []}
 
@@ -590,7 +653,7 @@ def get_user_transactions(user_id, market=None, tx_type=None):
 
 def get_portfolio_summary(user_id):
     """Comprehensive portfolio summary combining all markets, holdings, and transactions."""
-    doc = get_portfolio_doc(user_id)
+    doc = ensure_portfolio(user_id)
     if not doc:
         return {
             "wallet": DEFAULT_WALLET,
