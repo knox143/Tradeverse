@@ -312,7 +312,8 @@ def _ensure_lot_ids(user_id, market, doc=None):
         migrated.append(item)
 
     if changed:
-        portfolios.update_one({"user_id": user_id}, {"$set": {field: migrated}})
+        query = {"_id": doc["_id"]} if doc.get("_id") else {"user_id": user_id}
+        portfolios.update_one(query, {"$set": {field: migrated}})
         doc[field] = migrated
     return doc
 
@@ -349,7 +350,8 @@ def _ensure_transactions(user_id, doc=None):
                 "date": date_val + " 10:00:00",
                 "status": "COMPLETED",
             })
-    portfolios.update_one({"user_id": user_id}, {"$set": {"transactions": seeded_tx}})
+    query = {"_id": doc["_id"]} if doc.get("_id") else {"user_id": user_id}
+    portfolios.update_one(query, {"$set": {"transactions": seeded_tx}})
     doc["transactions"] = seeded_tx
     return doc
 
@@ -378,7 +380,8 @@ def record_transaction(user_id, tx_type, symbol, market, quantity, price, total_
     }
     transactions = list(doc.get("transactions", []))
     transactions.append(tx)
-    portfolios.update_one({"user_id": user_id}, {"$set": {"transactions": transactions}})
+    query = {"_id": doc["_id"]} if doc.get("_id") else {"user_id": user_id}
+    portfolios.update_one(query, {"$set": {"transactions": transactions}})
     doc["transactions"] = transactions
     return tx
 
@@ -443,10 +446,13 @@ def buy_asset(user_id, market, symbol, quantity, current_price=None):
     holdings.append(lot)  # Never merge lots, even when symbol/price/time are identical.
     wallet[market] = round(balance - total, 2)
 
+    query = {"_id": doc["_id"]} if doc.get("_id") else {"user_id": user_id}
     portfolios.update_one(
-        {"user_id": user_id},
+        query,
         {"$set": {field: holdings, "wallet": wallet}},
     )
+    doc[field] = holdings
+    doc["wallet"] = wallet
     _sync_portfolio_to_cloud()
 
     # Record buy transaction in audit trail
@@ -533,10 +539,13 @@ def sell_lot(user_id, market, lot_id, quantity, current_price=None):
         holdings[index] = lot
 
     wallet[market] = round(balance + proceeds, 2)
+    query = {"_id": doc["_id"]} if doc.get("_id") else {"user_id": user_id}
     portfolios.update_one(
-        {"user_id": user_id},
+        query,
         {"$set": {field: holdings, "wallet": wallet}},
     )
+    doc[field] = holdings
+    doc["wallet"] = wallet
     _sync_portfolio_to_cloud()
 
     # Record sell transaction in audit trail

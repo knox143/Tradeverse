@@ -678,7 +678,7 @@ def admin_users():
 
     try:
         import cloud_sync
-        cloud_sync.download_from_cloud()
+        cloud_sync.download_from_cloud(force=True)
     except Exception:
         pass
 
@@ -690,8 +690,17 @@ def admin_users():
 
     user_list = []
     for u in users:
-        doc = portfolio_db.get_portfolio_doc(u["id"])
-        wallets = doc.get("wallets", {}) if doc else {}
+        doc = portfolio_db.ensure_portfolio(u["id"], u["username"])
+        wallets = (doc.get("wallet") or doc.get("wallets") or dict(portfolio_db.DEFAULT_WALLET)) if doc else dict(portfolio_db.DEFAULT_WALLET)
+        for m in ("ISE", "USE", "CCME"):
+            if m not in wallets or wallets[m] is None:
+                wallets[m] = portfolio_db.DEFAULT_WALLET.get(m, 0.0)
+
+        txs = doc.get("transactions", []) if doc else []
+        buy_count = sum(1 for t in txs if t.get("type") == "BUY")
+        sell_count = sum(1 for t in txs if t.get("type") == "SELL")
+        holdings_count = sum(len(doc.get(m + "_portfolio", [])) for m in ("ISE", "USE", "CCME")) if doc else 0
+
         user_list.append({
             "id": u["id"],
             "username": u["username"],
@@ -699,6 +708,10 @@ def admin_users():
             "phone": u["phone"],
             "has_active_session": bool(u["session_token"]),
             "wallets": wallets,
+            "buy_count": buy_count,
+            "sell_count": sell_count,
+            "holdings_count": holdings_count,
+            "total_trades": len(txs),
         })
     return render_template("admin_users.html", users=user_list)
 
@@ -710,7 +723,7 @@ def api_admin_users():
 
     try:
         import cloud_sync
-        cloud_sync.download_from_cloud()
+        cloud_sync.download_from_cloud(force=True)
     except Exception:
         pass
 
@@ -719,16 +732,27 @@ def api_admin_users():
         "SELECT id, username, email, phone, session_token FROM users ORDER BY id ASC"
     ).fetchall()
     conn.close()
-    return jsonify([
-        {
+
+    result = []
+    for u in users:
+        doc = portfolio_db.ensure_portfolio(u["id"], u["username"])
+        wallets = (doc.get("wallet") or doc.get("wallets") or dict(portfolio_db.DEFAULT_WALLET)) if doc else dict(portfolio_db.DEFAULT_WALLET)
+        for m in ("ISE", "USE", "CCME"):
+            if m not in wallets or wallets[m] is None:
+                wallets[m] = portfolio_db.DEFAULT_WALLET.get(m, 0.0)
+
+        txs = doc.get("transactions", []) if doc else []
+        result.append({
             "id": u["id"],
             "username": u["username"],
             "email": u["email"],
             "phone": u["phone"],
             "has_active_session": bool(u["session_token"]),
-        }
-        for u in users
-    ])
+            "wallets": wallets,
+            "total_trades": len(txs),
+            "holdings_count": sum(len(doc.get(m + "_portfolio", [])) for m in ("ISE", "USE", "CCME")) if doc else 0,
+        })
+    return jsonify(result)
 
 
 @app.route("/api/search")
