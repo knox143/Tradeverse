@@ -360,6 +360,49 @@ def api_captcha():
     return jsonify({"captcha": code})
 
 
+def _find_user_by_identifier(conn, identifier: str):
+    """
+    Looks up a user by:
+      1. Username (case-insensitive)
+      2. Numeric User ID (e.g. 7 or #7)
+      3. Mobile Number (any format: +919876543210, 9876543210, 09876543210, spaces/dashes)
+      4. Email Address (case-insensitive)
+    """
+    raw = (identifier or "").strip()
+    if not raw:
+        return None
+
+    phone_digits = re.sub(r"\D", "", raw)
+    last10 = phone_digits[-10:] if len(phone_digits) >= 10 else ""
+    numeric_id = None
+    clean_id = raw.lstrip("#").strip()
+    if clean_id.isdigit():
+        try:
+            numeric_id = int(clean_id)
+        except ValueError:
+            numeric_id = None
+
+    return conn.execute(
+        """
+        SELECT * FROM users
+        WHERE LOWER(username) = LOWER(?)
+           OR LOWER(email) = LOWER(?)
+           OR phone = ?
+           OR (? != '' AND phone LIKE ?)
+           OR (? != '' AND phone LIKE ?)
+           OR (? IS NOT NULL AND id = ?)
+        """,
+        (
+            raw,
+            raw,
+            raw,
+            phone_digits, f"%{phone_digits}",
+            last10, f"%{last10}",
+            numeric_id, numeric_id,
+        ),
+    ).fetchone()
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     ip = request.remote_addr or "127.0.0.1"
@@ -386,16 +429,7 @@ def login():
         password = request.form.get("password", "")
 
         conn = get_db_connection()
-        phone_digits = re.sub(r"\D", "", identifier)
-        user = conn.execute(
-            """
-            SELECT * FROM users
-            WHERE LOWER(username) = LOWER(?)
-               OR phone = ?
-               OR (LENGTH(?) >= 10 AND phone LIKE ?)
-            """,
-            (identifier, identifier, phone_digits, f"%{phone_digits}"),
-        ).fetchone()
+        user = _find_user_by_identifier(conn, identifier)
 
         # If user is not found locally, try restoring from Vercel Blob in case account was created on another instance
         if not user:
@@ -405,15 +439,7 @@ def login():
                     if cloud_sync.download_from_cloud(force=True):
                         conn.close()
                         conn = get_db_connection()
-                        user = conn.execute(
-                            """
-                            SELECT * FROM users
-                            WHERE LOWER(username) = LOWER(?)
-                               OR phone = ?
-                               OR (LENGTH(?) >= 10 AND phone LIKE ?)
-                            """,
-                            (identifier, identifier, phone_digits, f"%{phone_digits}"),
-                        ).fetchone()
+                        user = _find_user_by_identifier(conn, identifier)
             except Exception as e:
                 app.logger.warning(f"Cloud sync check error during login: {e}")
 
@@ -440,7 +466,7 @@ def login():
         else:
             conn.close()
             record_login_failure(ip)
-            flash("Invalid username/mobile number or password.", "error")
+            flash("Invalid User ID, mobile number, or password.", "error")
             return render_template("login.html", captcha_text=session.get("login_captcha", generate_captcha_text()))
 
     captcha_code = generate_captcha_text()
